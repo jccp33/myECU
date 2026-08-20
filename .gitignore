@@ -1,0 +1,10 @@
+# Artefactos de compilacion
+/build/
+*.o
+
+# Archivos generados por herramientas del sistema
+*.swp
+*~
+
+# Configuracion local de VS Code
+.vscode/
