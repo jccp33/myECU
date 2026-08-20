@@ -5,14 +5,14 @@
 
 Control::Control() : state(EcuState::INIT), errors(0) {}
 
-void Control::reset(std::size_t signals) {
+void Control::reset() {
     state = EcuState::INIT;
     errors = 0;
-    validSignals.assign(signals, false);
+    validSignals.assign(validSignals.size(), false);
 }
 
-bool Control::allSignalsValid(std::size_t signals) {
-    for (std::size_t signal = 0; signal < signals; signal++) {
+bool Control::allSignalsValid() {
+    for (std::size_t signal = 0; signal < validSignals.size(); signal++) {
         if (!validSignals[signal]) {
             return false;
         }
@@ -30,13 +30,9 @@ bool Control::isCriticalCondition(Message &mssg){
     return (condition && mssg.getIsCritic());
 }
 
-void Control::processMessage(Message &mssg, std::size_t signals) {
-    if (validSignals.size() != signals) {
-        validSignals.assign(signals, false);
-    }
-
+void Control::processMessage(Message &mssg) {
     uint8_t signal = static_cast<uint8_t>(mssg.getSensorId());
-    if (signal < signals) {
+    if (signal < validSignals.size()) {
         validSignals[signal] = mssg.getSignalStatus() == SignalStatus::VALID &&
                                !isWarningCondition(mssg) &&
                                !isCriticalCondition(mssg);
@@ -57,7 +53,7 @@ void Control::processMessage(Message &mssg, std::size_t signals) {
         case EcuState::SELF_TEST:
             // voltaje
             if (mssg.getSensorId() == SensorId::VOLTAGE) {
-                if (mssg.getRawValue() >= 11.0f && mssg.getSignalStatus() == SignalStatus::VALID) {
+                if (mssg.getRawValue() >= mssg.getMaxValue() && mssg.getSignalStatus() == SignalStatus::VALID) {
                     state = EcuState::OPERATIONAL;
                     std::cout << TXT_GREEN << "[CONTROL] SELF_TEST Exitoso -> OPERATIONAL" << TXT_RESET << std::endl;
                 } else {
@@ -87,7 +83,7 @@ void Control::processMessage(Message &mssg, std::size_t signals) {
                 std::cout << TXT_RED << "[CONTROL] Falla Crítica en Modo Degradado -> SAFE_STATE" << TXT_RESET << std::endl;
             }
             // Recuperacion cuando todas las senales vuelven a ser validas
-            else if (allSignalsValid(signals)) {
+            else if (allSignalsValid()) {
                 state = EcuState::OPERATIONAL;
                 std::cout << TXT_GREEN << "[CONTROL] Señales Normalizadas -> OPERATIONAL" << TXT_RESET << std::endl;
             }
@@ -97,7 +93,7 @@ void Control::processMessage(Message &mssg, std::size_t signals) {
             if (mssg.getSensorId() == SensorId::SPEED && mssg.getRawValue() == 0.0f) {
                 state = EcuState::SHUTDOWN;
                 std::cout << TXT_BLUE << "[CONTROL] Vehículo Detenido en Estado Seguro -> SHUTDOWN" << TXT_RESET << std::endl;
-            } else if (allSignalsValid(signals)) {
+            } else if (allSignalsValid()) {
                 state = EcuState::OPERATIONAL;
                 std::cout << TXT_GREEN << "[CONTROL] Señales Normalizadas -> OPERATIONAL" << TXT_RESET << std::endl;
             }

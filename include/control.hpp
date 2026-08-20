@@ -2,7 +2,6 @@
 #define CONTROL_HPP
 
 #include "../include/message.hpp"
-#include <cstddef>
 #include <vector>
 
 enum class EcuState {
@@ -21,13 +20,13 @@ class Control {
         std::vector<bool> validSignals;
         bool isWarningCondition(Message& mssg);
         bool isCriticalCondition(Message& mssg);
-        bool allSignalsValid(std::size_t signals);
+        bool allSignalsValid();
     public:
         // constructors
         Control();
         // methods
-        void reset(std::size_t signals);
-        void processMessage(Message& mssg, std::size_t signals);
+        void reset();
+        void processMessage(Message& mssg);
         EcuState getCurrentState(){ return state; }
         void printCurrentState();
 };

@@ -31,7 +31,7 @@ OBJECTS = $(BUILD_DIR)/main.o \
 		  $(BUILD_DIR)/simulations.o
 
 # Nombre del ejecutable en la raíz del proyecto
-TARGET = ecu.o
+TARGET = ecu
 
 # Targets
 .PHONY: all build compile clean run distclean info
