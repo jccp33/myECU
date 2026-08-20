@@ -82,7 +82,7 @@ $(BUILD_DIR)/control.o: $(SRC_DIR)/control.cpp $(INCLUDE_DIR)/control.hpp $(INCL
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
 	@echo "✓ Compilado: $<"
 
-$(BUILD_DIR)/simulations.o: $(SRC_DIR)/simulations.cpp $(INCLUDE_DIR)/simulations.hpp
+$(BUILD_DIR)/simulations.o: $(SRC_DIR)/simulations.cpp $(INCLUDE_DIR)/simulations.hpp $(INCLUDE_DIR)/control.hpp
 	mkdir -p $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
 	@echo "✓ Compilado: $<"

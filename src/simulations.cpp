@@ -25,7 +25,7 @@ void validateMessages(size_t sensors, Message SensorsArray[], Gateway &gateway) 
 
 void processMessages(size_t sensors, Message SensorsArray[], Control &control) {
 	for (size_t sensor = 0; sensor < sensors; sensor++) {
-		control.processMessage(SensorsArray[sensor]);
+		control.processMessage(SensorsArray[sensor], sensors);
 	}
 	control.printCurrentState();
 }
@@ -108,7 +108,7 @@ void userSimulation(InitValues INIT_VALUES[], size_t sensors, Message SensorsArr
 			std::cin.get();
 		} else if (option == 3) {
 			initializeMessages(INIT_VALUES, sensors, SensorsArray, mssgManager);
-			control.reset();
+			control.reset(sensors);
 			std::cout << TXT_GREEN << "Sistema reiniciado." << TXT_RESET << std::endl;
 		} else if (option == 4) {
 			return;
