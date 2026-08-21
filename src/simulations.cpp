@@ -10,7 +10,6 @@
 void configureTerminal(bool enable);
 bool detectKey(char &tecla);
 
-namespace {
 void initializeMessages(InitValues INIT_VALUES[], size_t sensors, Message SensorsArray[], MessageManager &mssgManager) {
 	for (size_t sensor = 0; sensor < sensors; sensor++) {
 		mssgManager.InitMessage(INIT_VALUES[sensor], SensorsArray[sensor]);
@@ -36,125 +35,132 @@ void printMessages(size_t sensors, Message SensorsArray[]) {
 	}
 }
 
-bool readFloat(const char *prompt, float &value) {
-	while (true) {
-		std::cout << prompt;
-		if (std::cin >> value) {
-			return true;
-		}
-		if (std::cin.eof()) {
-			return false;
-		}
-		std::cin.clear();
-		std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-		std::cout << TXT_RED << "Entrada invalida. Introduce un valor numerico." << TXT_RESET << std::endl;
-	}
-}
-}
-
-void userSimulation(InitValues INIT_VALUES[], size_t sensors, Message SensorsArray[], MessageManager &mssgManager, Gateway &gateway, Control &control) {
+void userSimulation(
+	InitValues INIT_VALUES[], 
+	size_t sensors, 
+	Message SensorsArray[], 
+	MessageManager &mssgManager, 
+	Gateway &gateway, 
+	Control &control
+) {
+	// init sensors
 	initializeMessages(INIT_VALUES, sensors, SensorsArray, mssgManager);
-	
+	// main loop
     while (true) {
+		// clean screen
 		cleanScreen();
+		// show menu
+		int option;
 		std::cout << "1. Ingresar valores de senales" << std::endl;
 		std::cout << "2. Mostrar estado del sistema" << std::endl;
-		std::cout << "3. Reiniciar sistema" << std::endl;
-		std::cout << "4. Salir" << std::endl;
-		std::cout << std::endl << "Selecciona una opcion: ";
-
-		int option;
-		if (!(std::cin >> option)) {
-			if (std::cin.eof()) {
-				return;
-			}
-			std::cin.clear();
-			std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+		std::cout << "3. Salir" << std::endl;
+		std::cout << "Selecciona una opcion: ";
+		std::cin >> option;
+		// invalid option
+		if (option<1 || option>3) {
 			std::cout << TXT_RED << "Opcion invalida." << TXT_RESET << std::endl;
+			std::cout << std::endl << "Presione enter para continuar ...";
+			std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+			std::cin.get();
 			continue;
 		}
-
 		if (option == 1) {
-			float speed;
-			float rpm;
-			float temperature;
-			float voltage;
-			float brake;
-			float shutdown;
-			if (!readFloat("Introduce valor velocidad km/h: ", speed) ||
-				!readFloat("Introduce valor RPM: ", rpm) ||
-				!readFloat("Introduce temperatura C: ", temperature) ||
-				!readFloat("Introduce voltaje V: ", voltage) ||
-				!readFloat("Introduce valor freno (0 o 1): ", brake) ||
-				!readFloat("Introduce shutdown (0 o 1): ", shutdown)) {
-				return;
+			std::cout << std::endl;
+			// option 1 : read signals
+			for(size_t mssg=0; mssg<sensors; mssg++){
+				std::string value_str;
+				float value;
+				if(SensorsArray[mssg].getSensorId() == SensorId::SHUT_REQ)
+					std::cout << "Solicitud de Apagado (0 o 1)?:  ";
+				else if(SensorsArray[mssg].getSensorId() == SensorId::BRAKE)
+					std::cout << "Solicitud de Freno (0 o 1)?:    ";
+				else if(SensorsArray[mssg].getSensorId() == SensorId::SPEED)
+					std::cout << "Introduce la velocidad (km/h):  ";
+				else if(SensorsArray[mssg].getSensorId() == SensorId::RPM)
+					std::cout << "Introduce valor de las RPM:     ";
+				else if(SensorsArray[mssg].getSensorId() == SensorId::TEMP)
+					std::cout << "Introduce la temperatura (C):   ";
+				else if(SensorsArray[mssg].getSensorId() == SensorId::VOLTAGE)
+					std::cout << "Introduce valor de voltaje (V): ";
+				else 
+					std::cout << "Introduce valor de indefinido:  ";
+				std::cin >> value_str;
+				if(isNumber(value_str)) value = std::stof(value_str);
+				else value = 0.0f;
+				mssgManager.UpdateMessage(get_timestamp_ms(), value, SensorsArray[mssg]);
 			}
-			mssgManager.UpdateMessage(get_timestamp_ms(), speed, SensorsArray[1]);
-			mssgManager.UpdateMessage(get_timestamp_ms(), rpm, SensorsArray[2]);
-			mssgManager.UpdateMessage(get_timestamp_ms(), temperature, SensorsArray[3]);
-			mssgManager.UpdateMessage(get_timestamp_ms(), voltage, SensorsArray[4]);
-			mssgManager.UpdateMessage(get_timestamp_ms(), brake, SensorsArray[5]);
-			mssgManager.UpdateMessage(get_timestamp_ms(), shutdown, SensorsArray[0]);
+			// validate & process
 			validateMessages(sensors, SensorsArray, gateway);
 			processMessages(sensors, SensorsArray, control);
-			printMessages(sensors, SensorsArray);
+			//printMessages(sensors, SensorsArray);
 		} else if (option == 2) {
+			// option 2 : show state
 			std::cout << std::endl;
             control.printCurrentState();
             std::cout << std::endl;
 			printMessages(sensors, SensorsArray);
-			std::cout << std::endl << "Press enter to continue ...";
+			std::cout << std::endl << "Presione enter para continuar ...";
 			std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 			std::cin.get();
 		} else if (option == 3) {
-			initializeMessages(INIT_VALUES, sensors, SensorsArray, mssgManager);
-			control.reset();
-			std::cout << TXT_GREEN << "Sistema reiniciado." << TXT_RESET << std::endl;
-		} else if (option == 4) {
+			// option 3 : finish
 			return;
 		} else {
-			std::cout << TXT_YELLOW << "Opcion invalida." << TXT_RESET << std::endl;
+			// invalid option
+			std::cout << TXT_RED << "Opcion invalida." << TXT_RESET << std::endl;
 		}
 	}
 }
 
-void randomSimulation(InitValues INIT_VALUES[], size_t sensors, Message SensorsArray[], MessageManager &mssgManager, Gateway &gateway, Control &control) {
+void randomSimulation(
+	InitValues INIT_VALUES[], 
+	size_t sensors, 
+	Message SensorsArray[], 
+	MessageManager &mssgManager, 
+	Gateway &gateway, 
+	Control &control
+) {
+	// init sensors
 	initializeMessages(INIT_VALUES, sensors, SensorsArray, mssgManager);
 	bool isBraked = false;
 	bool shutdownRequested = false;
 	char command = 0;
 	configureTerminal(true);
-
+	// main loop
 	while (true) {
+		// clean screen
 		cleanScreen();
-		for (size_t sensor = 1; sensor < 5; sensor++) {
-			float range = INIT_VALUES[sensor].maxValue - INIT_VALUES[sensor].minValue;
-			float margin = range * 0.25f;
-			float value = randomFloat(INIT_VALUES[sensor].minValue - margin, INIT_VALUES[sensor].maxValue + margin);
-			mssgManager.UpdateMessage(get_timestamp_ms(), value, SensorsArray[sensor]);
-		}
-
+		// update values
 		if (detectKey(command) && (command == 'b' || command == 'B')) {
 			isBraked = !isBraked;
 		} else if (command == 's' || command == 'S') {
 			shutdownRequested = true;
 		}
-
-		uint64_t currentTime = get_timestamp_ms();
-		mssgManager.UpdateMessage(currentTime, isBraked ? 1.0f : 0.0f, SensorsArray[5]);
-		mssgManager.UpdateMessage(currentTime, shutdownRequested ? 1.0f : 0.0f, SensorsArray[0]);
-
+		for (size_t sensor = 1; sensor < sensors; sensor++) {
+			if(SensorsArray[sensor].getSensorId()!=SensorId::BRAKE && SensorsArray[sensor].getSensorId()!=SensorId::SHUT_REQ){
+				float min = SensorsArray[sensor].getMinValue() - 20.0f;
+				float max = SensorsArray[sensor].getMaxValue() + 20.0f;
+				float val = randomFloat(min, max);
+				mssgManager.UpdateMessage(get_timestamp_ms(), val, SensorsArray[sensor]);
+			}
+			if(SensorsArray[sensor].getSensorId() == SensorId::BRAKE){
+				mssgManager.UpdateMessage(get_timestamp_ms(), isBraked ? 1.0f : 0.0f, SensorsArray[sensor]);
+			}
+			if(SensorsArray[sensor].getSensorId() == SensorId::SHUT_REQ){
+				mssgManager.UpdateMessage(get_timestamp_ms(), shutdownRequested ? 1.0f : 0.0f, SensorsArray[sensor]);
+			}
+		}
+		// validate sensors
 		validateMessages(sensors, SensorsArray, gateway);
 		processMessages(sensors, SensorsArray, control);
         std::cout << std::endl;
 		printMessages(sensors, SensorsArray);
-
+		// if shutdown request
 		if (command == 's' || command == 'S') {
 			configureTerminal(false);
             std::cout << std::endl;
 			return;
 		}
-
 		std::this_thread::sleep_for(std::chrono::milliseconds(SPEED_VALUE));
 	}
 }

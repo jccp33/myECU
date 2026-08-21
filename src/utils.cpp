@@ -1,5 +1,6 @@
 #include "../include/utils.hpp"
 #include <chrono>
+#include <sstream>
 
 void cleanScreen(){
     #ifdef _WIN32
@@ -29,4 +30,13 @@ int randomInt(int min, int max) {
 float randomFloat(float min, float max) {
     std::uniform_real_distribution<float> distr(min, max);
     return distr(get_generator());
+}
+
+bool isNumber(const std::string &str) {
+    if (str.empty()) return false;
+    std::stringstream iss(str);
+    double valor;
+    iss >> valor;
+    // Verifica si extrajo todo el string y no hubo errores
+    return iss.eof() && !iss.fail();
 }

@@ -36,14 +36,14 @@ bool detectKey(char &tecla) {
 int main(int argc, char* argv[]){
     // init values
     InitValues INIT_VALUES[] = {
-        {0, SensorId::SHUT_REQ, 00.0f, 000.0f, 0001.0f, false, ""},
-        {1, SensorId::SPEED,    00.0f, 000.0f, 0220.0f, false, "km/h"},
-        {2, SensorId::RPM,      00.0f, 000.0f, 7000.0f, false, "RPM"},
-        {3, SensorId::TEMP,     25.0f, -20.0f, 0130.0f,  true, "C"},
-        {4, SensorId::VOLTAGE,  12.5f, 008.0f, 0016.0f,  true, "V"},
-        {5, SensorId::BRAKE,    00.0f, 000.0f, 0001.0f,  true, ""}
+        {0, SensorId::SHUT_REQ, 00.0f, 000.0f, 0001.0f, false, "S_R"},
+        {1, SensorId::BRAKE,    00.0f, 000.0f, 0001.0f, false, "BRK"},
+        {2, SensorId::SPEED,    00.0f, 000.0f, 0220.0f, false, "km/h"},
+        {3, SensorId::RPM,      00.0f, 000.0f, 7000.0f, true,  "RPM"},
+        {4, SensorId::TEMP,     25.0f, -20.0f, 0130.0f, true,  "C"},
+        {5, SensorId::VOLTAGE,  12.5f, 008.0f, 0016.0f, true,  "V"}
     };
-    size_t sensors = sizeof(INIT_VALUES) / sizeof(InitValues);
+    const size_t sensors = sizeof(INIT_VALUES) / sizeof(InitValues);
     // objects
     Message SensorsArray[sensors];
     MessageManager mssgManager;
