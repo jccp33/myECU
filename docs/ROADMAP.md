@@ -829,54 +829,15 @@ Para embedded, esa sería una propiedad interesante.
 
 ---
 
-# FASE 21 — Implementar Ring Buffer en `STRUCTS`
+# FASE 21 — Fuera de alcance: Ring Buffer externo
 
-Esta tarea puede ejecutarse paralelamente.
+El repositorio o carpeta `STRUCTS` es un proyecto independiente y no forma parte
+del alcance ni del cálculo de avance de `myECU`.
 
-No integrarlo todavía a `myECU`.
-
-### Investigar
-
-* [ ] FIFO.
-* [ ] Circular buffer.
-* [ ] `head`.
-* [ ] `tail`.
-* [ ] `capacity`.
-* [ ] empty/full.
-* [ ] wrap-around.
-* [ ] overwrite vs reject policy.
-
-### Implementar
-
-Crear:
-
-```text
-STRUCTS/ringbuffer/
-```
-
-con operaciones conceptuales:
-
-```text
-create
-destroy
-push
-pop
-peek
-is_empty
-is_full
-size
-capacity
-```
-
-### Probar
-
-* [ ] Insertar hasta llenar.
-* [ ] Extraer hasta vaciar.
-* [ ] Wrap-around.
-* [ ] Overflow.
-* [ ] Underflow.
-* [ ] Secuencia push/pop alternada.
-* [ ] Sanitizers.
+Si el milestone embedded requiere posteriormente un ring buffer, se diseñará o
+integrará dentro del alcance de `myECU`, con requisitos y pruebas propios. Esa
+decisión corresponde a la fase de comunicación posterior al primer milestone
+físico.
 
 ---
 
@@ -1065,7 +1026,7 @@ Después del milestone anterior:
 ```text
 UART logging
     ↓
-Ring Buffer
+Ring Buffer propio o adaptado para myECU
     ↓
 CAN
     ↓
@@ -1083,6 +1044,23 @@ RTOS si existe necesidad real
 ```
 
 No invertiría ese orden.
+
+---
+
+# Estado de avance
+
+Corte verificado: **22 de agosto de 2026**.
+
+El cálculo excluye la Fase 21 asociada al proyecto externo `STRUCTS` y utiliza
+cada checkbox de las fases técnicas de `myECU` como una unidad de trabajo:
+
+```text
+Tareas completadas: 112
+Tareas en alcance:   182
+Avance técnico:     61.54 %
+```
+
+La secuencia inmediata lleva **14 de 18 tareas (77.78 %)**.
 
 ---
 
