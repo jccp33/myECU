@@ -1,10 +1,10 @@
 #include "../include/getaway.hpp"
 
-bool Gateway::validateValue(float value, float min, float max){
+bool Gateway::validateValue(float value, float min, float max) const {
     return (value>=min && value<=max);
 }
 
-void Gateway::validateMessage(Message &mssg, uint64_t currentTimeMs){
+void Gateway::validateMessage(Message &mssg, TimestampMs currentTimeMs) const {
     if ((currentTimeMs - mssg.getTimestamp()) > mssg.getTimeoutMs()) {
         mssg.setSignalStatus(SignalStatus::TIMEOUT);
         return;

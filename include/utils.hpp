@@ -12,6 +12,8 @@
 #define TXT_CYAN    "\033[36m"
 #define TXT_PURPLE  "\033[35m"
 
+// methods
+
 void cleanScreen();
 
 uint64_t get_timestamp_ms();

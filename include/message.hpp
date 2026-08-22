@@ -4,6 +4,8 @@
 #include <cstdint>
 #include <string>
 
+using TimestampMs = std::uint64_t;
+
 // Sensores
 enum class SensorId : uint8_t {
     SHUT_REQ,  // solicitud de apagado
@@ -39,17 +41,27 @@ class Message {
         bool isCritic;           // es sensor critico (true, false)
         std::string name;
         std::string unit;
-        uint64_t timeoutMs;
+        TimestampMs timeoutMs;
         bool isShutdownRequest;
         float activeValue;
-        uint64_t timestampMs;    // milisegundos
+        TimestampMs timestampMs;    // milisegundos
     public: 
         // constructors
         Message();
-        Message(uint32_t id, SensorId sId, const std::string& sensorName,
-            const std::string& sensorUnit, float val, bool critic,
-            float min, float max, uint64_t timeout, bool shutdownRequest,
-            float shutdownValue);
+        Message(
+            uint32_t id, 
+            SensorId sId, 
+            const std::string &sensorName,
+            const std::string &sensorUnit, 
+            float val, 
+            bool critic,
+            float min, 
+            float max, 
+            TimestampMs timeout, 
+            bool shutdownRequest,
+            float shutdownValue,
+            TimestampMs timestamp
+        );
         // setters
         void setMessageId(uint32_t id);
         void setSensorId(SensorId id);
@@ -58,25 +70,21 @@ class Message {
         void setMaxValue(float value);
         void setSignalStatus(SignalStatus status);
         void setIsCritic(bool critic);
-        void setTimesStamp(uint64_t timestamp);
+        void setTimesStamp(TimestampMs timestamp);
         // getters
-        uint32_t getMessageId();
-        SensorId getSensorId();
-        float getRawValue();
-        float getMinValue();
-        float getMaxValue();
-        SignalStatus getSignalStatus();
-        bool getIsCritic();
-        uint64_t getTimeoutMs() const;
+        uint32_t getMessageId() const;
+        SensorId getSensorId() const;
+        float getRawValue() const;
+        float getMinValue() const;
+        float getMaxValue() const;
+        SignalStatus getSignalStatus() const;
+        bool getIsCritic() const;
+        TimestampMs getTimeoutMs() const;
         bool getIsShutdownRequest() const;
         float getActiveValue() const;
-        uint64_t getTimestamp();
-        const char *getUnit() const;
-        const char *getName() const;
-        // Methods
-        std::string getMessageString() const;
-        std::string getStdMessageString() const;
-        std::string getStdColorsMessageString() const;
+        TimestampMs getTimestamp() const;
+        const std::string &getUnit() const;
+        const std::string &getName() const;
 };
 
 #endif

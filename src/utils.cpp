@@ -13,9 +13,15 @@ void cleanScreen(){
 }
 
 uint64_t get_timestamp_ms() {
-    return std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::system_clock::now().time_since_epoch()
-    ).count();
+    const std::chrono::milliseconds elapsed =
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch()
+        );
+    const std::chrono::milliseconds::rep count = elapsed.count();
+    if (count < 0) {
+        return 0U;
+    }
+    return static_cast<uint64_t>(count);
 }
 
 std::mt19937& get_generator() {

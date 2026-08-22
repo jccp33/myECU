@@ -28,16 +28,15 @@ class Control {
         std::vector<SignalRecord> signals;
         bool shutdownRequested;
         std::size_t maxInvalidSignals;
-        bool allSignalsValid();
+        bool allSignalsValid() const;
         void updateState();
     public:
         // constructors
-        explicit Control(std::size_t maxInvalidSignals = 4);
+        explicit Control(std::size_t invalidSignalLimit = 4);
         // methods
         void reset();
-        void processMessage(Message &mssg);
-        EcuState getCurrentState(){ return state; }
-        void printCurrentState();
+        void processMessage(const Message &mssg);
+        EcuState getCurrentState() const { return state; }
 };
 
 #endif

@@ -26,8 +26,8 @@ struct SystemConfig {
 
 class MessageManager {
     public:
-        Message InitMessage(const InitValues &values);
-        void UpdateMessage(uint64_t time, float value, Message &mssg);
+        Message InitMessage(const InitValues &values, TimestampMs timestamp) const;
+        void UpdateMessage(TimestampMs timestamp, float value, Message &mssg) const;
 };
 
 #endif

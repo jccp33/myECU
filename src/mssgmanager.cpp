@@ -1,7 +1,10 @@
 #include "../include/mssgmanager.hpp"
 
-Message MessageManager::InitMessage(const InitValues &values){
-    Message mssg = Message(
+Message MessageManager::InitMessage(
+    const InitValues &values, 
+    TimestampMs timestamp
+) const {
+    return Message(
         values.id,
         values.sId,
         values.name,
@@ -12,12 +15,16 @@ Message MessageManager::InitMessage(const InitValues &values){
         values.maxValue,
         values.timeoutMs,
         values.isShutdownRequest,
-        values.activeValue
+        values.activeValue,
+        timestamp
     );
-    return mssg;
 }
 
-void MessageManager::UpdateMessage(uint64_t time, float value, Message &mssg){
-    mssg.setTimesStamp(time);
+void MessageManager::UpdateMessage(
+    TimestampMs timestamp, 
+    float value, 
+    Message &mssg
+) const {
+    mssg.setTimesStamp(timestamp);
     mssg.setRawValue(value);
 }

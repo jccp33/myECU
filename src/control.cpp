@@ -1,12 +1,10 @@
-#include "../include/utils.hpp"
 #include "../include/control.hpp"
 #include <cstddef>
-#include <iostream>
-#include <string>
 
-Control::Control(std::size_t maxInvalidSignals)
-        : state(EcuState::INIT), errors(0), shutdownRequested(false),
-            maxInvalidSignals(maxInvalidSignals) {}
+Control::Control(std::size_t invalidSignalLimit) : 
+    state(EcuState::INIT), errors(0), 
+    shutdownRequested(false), 
+    maxInvalidSignals(invalidSignalLimit) {}
 
 void Control::reset() {
     state = EcuState::INIT;
@@ -15,7 +13,7 @@ void Control::reset() {
     shutdownRequested = false;
 }
 
-bool Control::allSignalsValid() {
+bool Control::allSignalsValid() const {
     for (std::size_t signal = 0; signal < signals.size(); signal++) {
         if (signals[signal].status != SignalStatus::VALID) {
             return false;
@@ -44,7 +42,7 @@ void Control::updateState() {
     }
 }
 
-void Control::processMessage(Message &mssg) {
+void Control::processMessage(const Message &mssg) {
     SignalRecord* record = 0;
     for (std::size_t signal = 0; signal < signals.size(); signal++) {
         if (signals[signal].messageId == mssg.getMessageId()) {
@@ -74,36 +72,4 @@ void Control::processMessage(Message &mssg) {
     if (shutdownRequested && (state == EcuState::DEGRADED || state == EcuState::SAFE_STATE)) {
         state = EcuState::SHUTDOWN;
     }
-}
-
-void Control::printCurrentState() {
-    std::string stateName = "UNDEFINED";
-    std::string stateColor = TXT_RESET;
-    switch (state) {
-        case EcuState::INIT:
-            stateName = "INIT";
-            stateColor = TXT_BLUE;
-            break;
-        case EcuState::SELF_TEST:
-            stateName = "SELF_TEST";
-            stateColor = TXT_YELLOW;
-            break;
-        case EcuState::OPERATIONAL: 
-            stateName = "OPERATIONAL";
-            stateColor = TXT_GREEN;
-            break;
-        case EcuState::DEGRADED:
-            stateName = "DEGRADED"; 
-            stateColor = TXT_YELLOW;
-            break;
-        case EcuState::SAFE_STATE:
-            stateName = "SAFE_STATE";
-            stateColor = TXT_RED;
-            break;
-        case EcuState::SHUTDOWN:
-            stateName = "SHUTDOWN";
-            stateColor = TXT_BLUE;
-            break;
-    }
-    std::cout << stateColor << "[CONTROL STATE]: " << stateName << TXT_RESET << std::endl;
 }

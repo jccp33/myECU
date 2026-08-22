@@ -1,71 +1,130 @@
 #include "../include/simulations.hpp"
 #include "../include/utils.hpp"
+#include "../include/linux_platform.hpp"
 #include <iostream>
-#include <limits>
 #include <thread>
-#include <unistd.h>
-#include <termios.h>
-#include <fcntl.h>
+#include <iomanip>
+#include <chrono>
+#include <limits>
 #include <string>
-#include <vector>
 
-KeyPressed detectKey(char &tecla) {
-    KeyPressed keypressed;
-    char c;
-    int bytes = read(STDIN_FILENO, &c, 1);
-    if (bytes > 0) {
-        tecla = c;
-        keypressed.key = c;
-        keypressed.pressed = true;
-        return keypressed;
-    }
-    keypressed.key = '\0';
-    keypressed.pressed = false;
-    return keypressed;
-}
-
-void configureTerminal(bool enable) {
-    static struct termios oldt, newt;
-    if (enable) {
-        tcgetattr(STDIN_FILENO, &oldt);
-        newt = oldt;
-        newt.c_lflag &= ~(ICANON | ECHO);
-        tcsetattr(STDIN_FILENO, TCSANOW, &newt);
-        int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
-        fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
-    } else {
-        tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
-        int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
-        fcntl(STDIN_FILENO, F_SETFL, flags & ~O_NONBLOCK);
-    }
-}
-
-void initializeMessages(const std::vector<InitValues>& initValues, std::vector<Message>& sensorsArray, MessageManager& mssgManager) {
+// SIMULATION
+void initializeMessages(
+	const std::vector<InitValues> &initValues, 
+	std::vector<Message> &sensorsArray, 
+	MessageManager &mssgManager
+) {
+	sensorsArray.reserve(initValues.size());
 	for (size_t sensor = 0; sensor < initValues.size(); sensor++) {
-		Message mssg = mssgManager.InitMessage(initValues[sensor]);
-		sensorsArray.push_back(mssg);
+		sensorsArray.push_back(mssgManager.InitMessage(
+			initValues[sensor], 
+			get_timestamp_ms()
+		));
 	}
 }
 
+// SIMULATION
 void validateMessages(std::vector<Message>& sensorsArray, Gateway& gateway) {
 	for (size_t sensor = 0; sensor < sensorsArray.size(); sensor++) {
 		gateway.validateMessage(sensorsArray[sensor], get_timestamp_ms());
 	}
 }
 
+// SIMULATION
 void processMessages(std::vector<Message>& sensorsArray, Control& control) {
 	for (size_t sensor = 0; sensor < sensorsArray.size(); sensor++) {
 		control.processMessage(sensorsArray[sensor]);
 	}
 }
 
-void printMessages(const std::vector<Message>& sensorsArray) {
-	for (size_t sensor = 0; sensor < sensorsArray.size(); sensor++) {
-		std::cout << sensorsArray[sensor].getStdColorsMessageString() << std::endl;
-		//std::cout << SensorsArray[sensor].getMessageString() << std::endl;
-	}
+// PRESENTATION
+const char* getSignalStatusText(SignalStatus status) {
+    switch (status) {
+        case SignalStatus::VALID:
+            return "valido";
+
+        case SignalStatus::OUT_OF_RANGE:
+            return "fuera de rango";
+
+        case SignalStatus::TIMEOUT:
+            return "fuera de tiempo";
+
+        case SignalStatus::UNDEFINED:
+            return "indefinido";
+    }
+    return "indefinido";
 }
 
+// PRESENTATION
+const char* getSignalStatusColor(const Message& message) {
+    switch (message.getSignalStatus()) {
+        case SignalStatus::VALID:
+            return TXT_GREEN;
+        case SignalStatus::OUT_OF_RANGE:
+        case SignalStatus::TIMEOUT:
+            return message.getIsCritic() ? TXT_RED : TXT_YELLOW;
+        case SignalStatus::UNDEFINED:
+            return TXT_YELLOW;
+    }
+    return TXT_YELLOW;
+}
+
+// PRESENTATION
+void printMessages(const std::vector<Message> &sensorsArray) {
+    for (std::size_t sensor = 0; sensor < sensorsArray.size(); sensor++) {
+        const Message& message = sensorsArray[sensor];
+        std::cout
+            << std::left
+            << std::setw(24) << message.getName()
+            << std::setw(10) << std::fixed << std::setprecision(2)
+            << message.getRawValue()
+            << std::setw(6) << message.getUnit()
+            << getSignalStatusColor(message)
+            << getSignalStatusText(message.getSignalStatus())
+            << TXT_RESET
+            << std::endl;
+    }
+}
+
+// PRESENTATION
+void printControlState(const Control &control) {
+    const char* stateName = "UNDEFINED";
+    const char* stateColor = TXT_RESET;
+    switch (control.getCurrentState()) {
+        case EcuState::INIT:
+            stateName = "INIT";
+            stateColor = TXT_BLUE;
+            break;
+        case EcuState::SELF_TEST:
+            stateName = "SELF_TEST";
+            stateColor = TXT_YELLOW;
+            break;
+        case EcuState::OPERATIONAL:
+            stateName = "OPERATIONAL";
+            stateColor = TXT_GREEN;
+            break;
+        case EcuState::DEGRADED:
+            stateName = "DEGRADED";
+            stateColor = TXT_YELLOW;
+            break;
+        case EcuState::SAFE_STATE:
+            stateName = "SAFE_STATE";
+            stateColor = TXT_RED;
+            break;
+        case EcuState::SHUTDOWN:
+            stateName = "SHUTDOWN";
+            stateColor = TXT_BLUE;
+            break;
+    }
+    std::cout
+        << stateColor
+        << "[CONTROL STATE]: "
+        << stateName
+        << TXT_RESET
+        << std::endl;
+}
+
+// SIMULATION
 void userSimulation(
 	const std::vector<InitValues>& initValues,
 	std::vector<Message>& sensorsArray,
@@ -104,8 +163,9 @@ void userSimulation(
 				std::string user_mssg = std::string("Introduce valor de ")
 					+ sensorsArray[mssg].getName()
 					+ " (" + sensorsArray[mssg].getUnit() + "):";
-				short spaces = USER_MSSG_SIZE - user_mssg.size();
-				for(short i=0; i<spaces; i++) user_mssg += " ";
+				if (user_mssg.size() < USER_MESSAGE_WIDTH) {
+					user_mssg.append(USER_MESSAGE_WIDTH - user_mssg.size(), ' ');
+				}
 				// show user message and read value
 				std::cout << user_mssg;
 				std::cin >> value_str;
@@ -119,7 +179,7 @@ void userSimulation(
 		} else if (option == 2) {
 			// option 2 : show state
 			std::cout << std::endl;
-            control.printCurrentState();
+            printControlState(control);
             std::cout << std::endl;
 			printMessages(sensorsArray);
 			std::cout << std::endl << "Presione enter para continuar ...";
@@ -135,6 +195,7 @@ void userSimulation(
 	}
 }
 
+// SIMULATION
 void randomSimulation(
 	const std::vector<InitValues>& initValues,
 	std::vector<Message>& sensorsArray,
@@ -154,7 +215,7 @@ void randomSimulation(
 		std::cout << "Para simular freno presione:   'B' o 'b'" << std::endl;
         std::cout << "Para simular apagado presione: 'S' o 's'" << std::endl;
 		std::cout << std::endl;
-		control.printCurrentState();
+		printControlState(control);
 		std::cout << std::endl;
 		printMessages(sensorsArray);
 		std::cout << std::endl;
@@ -187,7 +248,7 @@ void randomSimulation(
 		// if shutdown request
 		if (shutdownRequested) {
 			cleanScreen();
-			control.printCurrentState();
+			printControlState(control);
 			std::cout << std::endl;
 			printMessages(sensorsArray);
 			configureTerminal(false);

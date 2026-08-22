@@ -5,16 +5,12 @@
 #include "../include/getaway.hpp"
 #include "../include/message.hpp"
 #include "../include/mssgmanager.hpp"
+#include <cstddef>
 #include <vector>
 
+constexpr std::size_t USER_MESSAGE_WIDTH = 50U;
 #define SPEED_VALUE     500
 #define TOLERANCE_VALUE 10.0f
-#define USER_MSSG_SIZE  50
-
-struct KeyPressed {
-    bool pressed;
-    char key;
-};
 
 void userSimulation(
     const std::vector<InitValues>& initValues,

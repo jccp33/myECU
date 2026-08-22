@@ -1,11 +1,35 @@
-# Artefactos de compilacion
+# Directorios de compilación
 /build/
-*.o
-ecu
+/build-*/
 
-# Archivos generados por herramientas del sistema
+# Artefactos de C/C++
+*.o
+*.obj
+*.a
+*.so
+*.so.*
+*.dylib
+*.exe
+/ecu
+
+# Archivos generados por CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+Testing/
+compile_commands.json
+
+# Cobertura y profiling
+*.gcda
+*.gcno
+*.profraw
+*.profdata
+
+# Archivos temporales del editor o sistema
 *.swp
 *~
+.DS_Store
 
-# Configuracion local de VS Code
+# Configuración local de VS Code
 .vscode/
