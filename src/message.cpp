@@ -17,7 +17,7 @@ Message::Message(){
     unit = "";
 }
 
-Message::Message(uint32_t id, SensorId sId, float val, bool critic, float min, float max, std::string _unit){
+Message::Message(uint32_t id, SensorId sId, float val, bool critic, float min, float max, std::string _unit, std::string _name){
     messageId = id;
     sensorId = sId;
     rawValue = val;
@@ -27,6 +27,7 @@ Message::Message(uint32_t id, SensorId sId, float val, bool critic, float min, f
     isCritic = critic;
     timestampMs = get_timestamp_ms();
     unit = _unit;
+    name = _name;
 }
 
 // setters
@@ -66,6 +67,10 @@ void Message::setUnit(std::string _unit){
     unit = _unit;
 }
 
+void Message::setName(std::string _name){
+    name = _name;
+}
+
 // getters
 uint32_t Message::getMessageId() {
     return messageId;
@@ -103,17 +108,12 @@ std::string Message::getUnit() {
     return unit;
 }
 
+std::string Message::getName(){
+    return name;
+}
+
 // methods
 std::string Message::getMessageString(){
-    // sensor to string
-    std::string sensorName = "";
-    if(sensorId == SensorId::SHUT_REQ) sensorName = "SHUTDOWN_REQUEST";
-    else if(sensorId == SensorId::SPEED) sensorName = "SPEED";
-    else if(sensorId == SensorId::RPM) sensorName = "RPM";
-    else if(sensorId == SensorId::TEMP) sensorName = "TEMPERATURE";
-    else if(sensorId == SensorId::VOLTAGE) sensorName = "VOLTAGE";
-    else if(sensorId == SensorId::BRAKE) sensorName = "BRAKE";
-    else sensorName = "UNDEFINED";
     // status to string
     std::string _status = "";
     if(status == SignalStatus::VALID) _status = "VALID";
@@ -124,28 +124,19 @@ std::string Message::getMessageString(){
     std::string _isCritic = isCritic ? "TRUE" : "FALSE";
     // result
     std::stringstream ss;
-    ss << std::left << std::setw(8) << messageId
-       << std::setw(8) << static_cast<int>(sensorId) 
-       << std::setw(18) << sensorName
+    ss << std::left << std::setw(10) << messageId
+       << std::setw(10) << static_cast<int>(sensorId) 
+       << std::setw(30) << name
        << std::setw(10) << std::fixed << std::setprecision(2) << rawValue 
-       << std::setw(6) << unit 
+       << std::setw(10) << unit 
        << std::setw(15) << _status 
-       << std::setw(8) << _isCritic
+       << std::setw(10) << _isCritic
        << std::setw(15) << timestampMs;
     std::string result = ss.str();
     return result;
 }
 
 std::string Message::getStdMessageString(){
-    // sensor to string
-    std::string sensorName = "";
-    if(sensorId == SensorId::SHUT_REQ) sensorName = "Solicitud de Apagado";
-    else if(sensorId == SensorId::SPEED) sensorName = "Velocidad";
-    else if(sensorId == SensorId::RPM) sensorName = "RPM";
-    else if(sensorId == SensorId::TEMP) sensorName = "Temperatura";
-    else if(sensorId == SensorId::VOLTAGE) sensorName = "Voltage";
-    else if(sensorId == SensorId::BRAKE) sensorName = "Freno";
-    else sensorName = "Indefinido";
     // status to string
     std::string _status = "";
     if(status == SignalStatus::VALID) _status = "valido";
@@ -155,7 +146,7 @@ std::string Message::getStdMessageString(){
     // result
     std::stringstream ss;
     ss << std::left
-       << std::setw(25) << sensorName
+       << std::setw(25) << name
        << std::setw(10) << std::fixed << std::setprecision(2) << rawValue 
        << std::setw(6) << unit 
        << std::setw(16) << _status;
@@ -164,15 +155,6 @@ std::string Message::getStdMessageString(){
 }
 
 std::string Message::getStdColorsMessageString(){
-    // sensor to string
-    std::string sensorName = "";
-    if(sensorId == SensorId::SHUT_REQ) sensorName = "Solicitud de Apagado";
-    else if(sensorId == SensorId::SPEED) sensorName = "Velocidad";
-    else if(sensorId == SensorId::RPM) sensorName = "RPM";
-    else if(sensorId == SensorId::TEMP) sensorName = "Temperatura";
-    else if(sensorId == SensorId::VOLTAGE) sensorName = "Voltage";
-    else if(sensorId == SensorId::BRAKE) sensorName = "Freno";
-    else sensorName = "Indefinido";
     // status to string
     std::string _status = "";
     if(status == SignalStatus::VALID) _status = "valido";
@@ -188,7 +170,7 @@ std::string Message::getStdColorsMessageString(){
     // result
     std::stringstream ss;
     ss << std::left  
-       << std::setw(24) << sensorName
+       << std::setw(24) << name
        << std::setw(10) << std::fixed << std::setprecision(2) << rawValue 
        << std::setw(6) << unit 
        << std::setw(10) << txtColor << _status << TXT_RESET;

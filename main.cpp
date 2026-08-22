@@ -36,12 +36,16 @@ bool detectKey(char &tecla) {
 int main(int argc, char* argv[]){
     // init values
     InitValues INIT_VALUES[] = {
-        {0, SensorId::SHUT_REQ, 00.0f, 000.0f, 0001.0f, false, "S_R"},
-        {1, SensorId::BRAKE,    00.0f, 000.0f, 0001.0f, false, "BRK"},
-        {2, SensorId::SPEED,    00.0f, 000.0f, 0220.0f, false, "km/h"},
-        {3, SensorId::RPM,      00.0f, 000.0f, 7000.0f, true,  "RPM"},
-        {4, SensorId::TEMP,     25.0f, -20.0f, 0130.0f, true,  "C"},
-        {5, SensorId::VOLTAGE,  12.5f, 008.0f, 0016.0f, true,  "V"}
+        {100, SensorId::SHUT_REQ, 00.0f, 000.0f, 0001.0f, false, "S_R",  "Solicitud de Apagado"},
+        {101, SensorId::BRAKE,    00.0f, 000.0f, 0001.0f, false, "BRK",  "Solicitud de Freno"},
+        {102, SensorId::SPEED,    00.0f, 000.0f, 0220.0f, false, "km/h", "Velocidad"},
+        {103, SensorId::RPM,      00.0f, 000.0f, 7000.0f, true,  "RPM",  "Revoluciones X minuto"},
+        {104, SensorId::TEMP,     25.0f, -20.0f, 0130.0f, true,  "C",    "Temperatura"},
+        {105, SensorId::VOLTAGE,  12.5f, 008.0f, 0016.0f, true,  "V",    "Voltaje"},
+        {106, SensorId::TPS,      0.0f,  000.5f, 0004.8f, false, "V",    "Posicion de Mariposa"},
+        {107, SensorId::MAP,      0.0f,  000.5f, 0004.7f, false, "V",    "Presion Absoluta"},
+        {108, SensorId::MAF,      0.0f,  002.0f, 0120.0f, false, "g/s",  "Flujo de masa de aire"},
+        {109, SensorId::O2,       0.0f,  000.1f, 0000.9f, false, "V",    "Sensor de oxigeno"}
     };
     const size_t sensors = sizeof(INIT_VALUES) / sizeof(InitValues);
     // objects

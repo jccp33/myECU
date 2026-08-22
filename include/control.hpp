@@ -26,7 +26,7 @@ class Control {
         Control();
         // methods
         void reset();
-        void processMessage(Message& mssg);
+        void processMessage(Message& mssg, uint8_t signal);
         EcuState getCurrentState(){ return state; }
         void printCurrentState();
 };

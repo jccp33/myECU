@@ -24,7 +24,7 @@ void validateMessages(size_t sensors, Message SensorsArray[], Gateway &gateway) 
 
 void processMessages(size_t sensors, Message SensorsArray[], Control &control) {
 	for (size_t sensor = 0; sensor < sensors; sensor++) {
-		control.processMessage(SensorsArray[sensor]);
+		control.processMessage(SensorsArray[sensor], (uint8_t)sensor);
 	}
 	control.printCurrentState();
 }
@@ -32,6 +32,7 @@ void processMessages(size_t sensors, Message SensorsArray[], Control &control) {
 void printMessages(size_t sensors, Message SensorsArray[]) {
 	for (size_t sensor = 0; sensor < sensors; sensor++) {
 		std::cout << SensorsArray[sensor].getStdColorsMessageString() << std::endl;
+		//std::cout << SensorsArray[sensor].getMessageString() << std::endl;
 	}
 }
 
@@ -130,12 +131,16 @@ void randomSimulation(
 	while (true) {
 		// clean screen
 		cleanScreen();
+		std::cout << "Para simular freno presione:   'B' o 'b'" << std::endl;
+        std::cout << "Para simular apagado presione: 'S' o 's'" << std::endl;
+		std::cout << std::endl;
 		// update values
 		if (detectKey(command) && (command == 'b' || command == 'B')) {
 			isBraked = !isBraked;
 		} else if (command == 's' || command == 'S') {
 			shutdownRequested = true;
 		}
+		// update values
 		for (size_t sensor = 1; sensor < sensors; sensor++) {
 			if(SensorsArray[sensor].getSensorId()!=SensorId::BRAKE && SensorsArray[sensor].getSensorId()!=SensorId::SHUT_REQ){
 				float min = SensorsArray[sensor].getMinValue() - 20.0f;
@@ -157,6 +162,10 @@ void randomSimulation(
 		printMessages(sensors, SensorsArray);
 		// if shutdown request
 		if (command == 's' || command == 'S') {
+			cleanScreen();
+			control.printCurrentState();
+			std::cout << std::endl;
+			printMessages(sensors, SensorsArray);
 			configureTerminal(false);
             std::cout << std::endl;
 			return;

@@ -6,13 +6,17 @@
 
 // Sensores
 enum class SensorId : uint8_t {
-    SHUT_REQ = 0,  // solicitud de apagado
-    SPEED = 1,     // velocidad (km/h)
-    RPM = 2,       // revoluciones por minuto
-    TEMP = 3,      // temperatura (°C)
-    VOLTAGE = 4,   // voltaje (V)
-    BRAKE = 5,     // freno
-    UNDEFINED = 6  // indefinido
+    SHUT_REQ,  // solicitud de apagado
+    SPEED,     // velocidad (km/h)
+    RPM,       // revoluciones por minuto
+    TEMP,      // temperatura (°C)
+    VOLTAGE,   // voltaje (V)
+    BRAKE,     // freno
+    TPS,       // Posición de la Mariposa del Acelerador
+    MAP,       // Presión Absoluta del Múltiple de Admisión
+    MAF,       // Flujo de Masa de Aire
+    O2,        // Sensor de Oxígeno (Sonda Lambda - Convencional de Zirconio)
+    UNDEFINED  // indefinido
 };
 
 // Estados (evaluado por la Gateway ECU)
@@ -28,6 +32,7 @@ class Message {
     private:
         uint32_t messageId;      // identificador
         SensorId sensorId;       // sensor/señal
+        std::string name;
         float rawValue;          // valor crudo
         float minValue;
         float maxValue;
@@ -38,7 +43,7 @@ class Message {
     public: 
         // constructors
         Message();
-        Message(uint32_t id, SensorId sId, float val, bool critic, float min, float max, std::string _unit);
+        Message(uint32_t id, SensorId sId, float val, bool critic, float min, float max, std::string _unit, std::string _name);
         // setters
         void setMessageId(uint32_t id);
         void setSensorId(SensorId id);
@@ -49,6 +54,7 @@ class Message {
         void setIsCritic(bool critic);
         void setTimesStamp(uint64_t timestamp);
         void setUnit(std::string _unit);
+        void setName(std::string _name);
         // getters
         uint32_t getMessageId();
         SensorId getSensorId();
@@ -59,6 +65,7 @@ class Message {
         bool getIsCritic();
         uint64_t getTimestamp();
         std::string getUnit();
+        std::string getName();
         // Methods
         std::string getMessageString();
         std::string getStdMessageString();

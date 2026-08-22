@@ -1,5 +1,6 @@
 #include "../include/utils.hpp"
 #include "../include/control.hpp"
+#include <cstddef>
 #include <iostream>
 #include <string>
 
@@ -30,12 +31,11 @@ bool Control::isCriticalCondition(Message &mssg){
     return (condition && mssg.getIsCritic());
 }
 
-void Control::processMessage(Message &mssg) {
-    uint8_t signal = static_cast<uint8_t>(mssg.getSensorId());
+void Control::processMessage(Message &mssg, uint8_t signal) {
     if (signal < validSignals.size()) {
-        validSignals[signal] = mssg.getSignalStatus() == SignalStatus::VALID &&
-                               !isWarningCondition(mssg) &&
-                               !isCriticalCondition(mssg);
+        validSignals[signal] = mssg.getSignalStatus() == SignalStatus::VALID; 
+        validSignals[signal] = validSignals[signal] && !isWarningCondition(mssg); 
+        validSignals[signal] = validSignals[signal] && !isCriticalCondition(mssg);
     }
 
     // SHUT_REQ 
