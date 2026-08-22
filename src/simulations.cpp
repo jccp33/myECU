@@ -5,7 +5,9 @@
 #include <limits>
 #include <thread>
 
-#define SPEED_VALUE 500
+#define SPEED_VALUE     500
+#define TOLERANCE_VALUE 10.0f
+#define USER_MSSG_SIZE  50
 
 void configureTerminal(bool enable);
 bool detectKey(char &tecla);
@@ -71,20 +73,12 @@ void userSimulation(
 			for(size_t mssg=0; mssg<sensors; mssg++){
 				std::string value_str;
 				float value;
-				if(SensorsArray[mssg].getSensorId() == SensorId::SHUT_REQ)
-					std::cout << "Solicitud de Apagado (0 o 1)?:  ";
-				else if(SensorsArray[mssg].getSensorId() == SensorId::BRAKE)
-					std::cout << "Solicitud de Freno (0 o 1)?:    ";
-				else if(SensorsArray[mssg].getSensorId() == SensorId::SPEED)
-					std::cout << "Introduce la velocidad (km/h):  ";
-				else if(SensorsArray[mssg].getSensorId() == SensorId::RPM)
-					std::cout << "Introduce valor de las RPM:     ";
-				else if(SensorsArray[mssg].getSensorId() == SensorId::TEMP)
-					std::cout << "Introduce la temperatura (C):   ";
-				else if(SensorsArray[mssg].getSensorId() == SensorId::VOLTAGE)
-					std::cout << "Introduce valor de voltaje (V): ";
-				else 
-					std::cout << "Introduce valor de indefinido:  ";
+				// user message
+				std::string user_mssg = std::string("Introduce valor de ") + SensorsArray[mssg].getName() + " (" + SensorsArray[mssg].getUnit() + "):";
+				short spaces = USER_MSSG_SIZE - user_mssg.size();
+				for(short i=0; i<spaces; i++) user_mssg += " ";
+				// show user message and read value
+				std::cout << user_mssg;
 				std::cin >> value_str;
 				if(isNumber(value_str)) value = std::stof(value_str);
 				else value = 0.0f;
@@ -141,10 +135,10 @@ void randomSimulation(
 			shutdownRequested = true;
 		}
 		// update values
-		for (size_t sensor = 1; sensor < sensors; sensor++) {
+		for (size_t sensor = 0; sensor < sensors; sensor++) {
 			if(SensorsArray[sensor].getSensorId()!=SensorId::BRAKE && SensorsArray[sensor].getSensorId()!=SensorId::SHUT_REQ){
-				float min = SensorsArray[sensor].getMinValue() - 20.0f;
-				float max = SensorsArray[sensor].getMaxValue() + 20.0f;
+				float min = SensorsArray[sensor].getMinValue() - TOLERANCE_VALUE;
+				float max = SensorsArray[sensor].getMaxValue() + TOLERANCE_VALUE;
 				float val = randomFloat(min, max);
 				mssgManager.UpdateMessage(get_timestamp_ms(), val, SensorsArray[sensor]);
 			}

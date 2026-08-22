@@ -8,9 +8,7 @@ void MessageManager::InitMessage(const InitValues &values, Message &mssg){
         values.value,
         values.isCritic,
         values.minValue,
-        values.maxValue,
-        values.unit,
-        values.name
+        values.maxValue
     );
 }
 

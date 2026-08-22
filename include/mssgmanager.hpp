@@ -10,8 +10,6 @@ struct InitValues {
     float minValue; 
     float maxValue;
     bool isCritic;
-    std::string unit;
-    std::string name;
 };
 
 class MessageManager {

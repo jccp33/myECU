@@ -32,18 +32,16 @@ class Message {
     private:
         uint32_t messageId;      // identificador
         SensorId sensorId;       // sensor/señal
-        std::string name;
         float rawValue;          // valor crudo
         float minValue;
         float maxValue;
         SignalStatus status;     // determinado por Gateway
         bool isCritic;           // es sensor critico (true, false)
         uint64_t timestampMs;    // milisegundos
-        std::string unit;
     public: 
         // constructors
         Message();
-        Message(uint32_t id, SensorId sId, float val, bool critic, float min, float max, std::string _unit, std::string _name);
+        Message(uint32_t id, SensorId sId, float val, bool critic, float min, float max);
         // setters
         void setMessageId(uint32_t id);
         void setSensorId(SensorId id);
@@ -53,8 +51,6 @@ class Message {
         void setSignalStatus(SignalStatus status);
         void setIsCritic(bool critic);
         void setTimesStamp(uint64_t timestamp);
-        void setUnit(std::string _unit);
-        void setName(std::string _name);
         // getters
         uint32_t getMessageId();
         SensorId getSensorId();
@@ -64,8 +60,8 @@ class Message {
         SignalStatus getSignalStatus();
         bool getIsCritic();
         uint64_t getTimestamp();
-        std::string getUnit();
-        std::string getName();
+        const char* getUnit();
+        const char* getName();
         // Methods
         std::string getMessageString();
         std::string getStdMessageString();

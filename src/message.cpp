@@ -4,6 +4,31 @@
 #include <sstream>
 #include <iomanip>
 
+struct SensorMetadata {
+    const char* name;
+    const char* unit;
+};
+
+const SensorMetadata SENSOR_METADATA[] = {
+    {"Solicitud de Apagado", "S_R"},
+    {"Velocidad", "km/h"},
+    {"Revoluciones X minuto", "RPM"},
+    {"Temperatura", "C"},
+    {"Voltaje", "V"},
+    {"Solicitud de Freno", "BRK"},
+    {"Posicion de Mariposa", "V"},
+    {"Presion Absoluta", "V"},
+    {"Flujo de masa de aire", "g/s"},
+    {"Sensor de Oxigeno", "V"},
+    {"Indefinido", ""}
+};
+
+const SensorMetadata& getSensorMetadata(SensorId sensorId) {
+    const std::size_t index = static_cast<std::size_t>(sensorId);
+    const std::size_t metadataCount = sizeof(SENSOR_METADATA) / sizeof(SENSOR_METADATA[0]);
+    return SENSOR_METADATA[index < metadataCount ? index : metadataCount - 1];
+}
+
 // constructors
 Message::Message(){
     messageId = 0;
@@ -14,10 +39,9 @@ Message::Message(){
     status = SignalStatus::UNDEFINED;
     isCritic = false;
     timestampMs = get_timestamp_ms();
-    unit = "";
 }
 
-Message::Message(uint32_t id, SensorId sId, float val, bool critic, float min, float max, std::string _unit, std::string _name){
+Message::Message(uint32_t id, SensorId sId, float val, bool critic, float min, float max){
     messageId = id;
     sensorId = sId;
     rawValue = val;
@@ -26,8 +50,6 @@ Message::Message(uint32_t id, SensorId sId, float val, bool critic, float min, f
     status = SignalStatus::VALID;
     isCritic = critic;
     timestampMs = get_timestamp_ms();
-    unit = _unit;
-    name = _name;
 }
 
 // setters
@@ -63,14 +85,6 @@ void Message::setTimesStamp(uint64_t timestamp){
     timestampMs = timestamp;
 }
 
-void Message::setUnit(std::string _unit){
-    unit = _unit;
-}
-
-void Message::setName(std::string _name){
-    name = _name;
-}
-
 // getters
 uint32_t Message::getMessageId() {
     return messageId;
@@ -104,12 +118,12 @@ uint64_t Message::getTimestamp() {
     return timestampMs;
 }
 
-std::string Message::getUnit() {
-    return unit;
+const char* Message::getUnit() {
+    return getSensorMetadata(sensorId).unit;
 }
 
-std::string Message::getName(){
-    return name;
+const char* Message::getName(){
+    return getSensorMetadata(sensorId).name;
 }
 
 // methods
@@ -126,9 +140,9 @@ std::string Message::getMessageString(){
     std::stringstream ss;
     ss << std::left << std::setw(10) << messageId
        << std::setw(10) << static_cast<int>(sensorId) 
-       << std::setw(30) << name
+    << std::setw(30) << getName()
        << std::setw(10) << std::fixed << std::setprecision(2) << rawValue 
-       << std::setw(10) << unit 
+    << std::setw(10) << getUnit()
        << std::setw(15) << _status 
        << std::setw(10) << _isCritic
        << std::setw(15) << timestampMs;
@@ -146,9 +160,9 @@ std::string Message::getStdMessageString(){
     // result
     std::stringstream ss;
     ss << std::left
-       << std::setw(25) << name
+    << std::setw(25) << getName()
        << std::setw(10) << std::fixed << std::setprecision(2) << rawValue 
-       << std::setw(6) << unit 
+    << std::setw(6) << getUnit()
        << std::setw(16) << _status;
     std::string result = ss.str();
     return result;
@@ -170,9 +184,9 @@ std::string Message::getStdColorsMessageString(){
     // result
     std::stringstream ss;
     ss << std::left  
-       << std::setw(24) << name
+    << std::setw(24) << getName()
        << std::setw(10) << std::fixed << std::setprecision(2) << rawValue 
-       << std::setw(6) << unit 
+    << std::setw(6) << getUnit()
        << std::setw(10) << txtColor << _status << TXT_RESET;
     std::string result = ss.str();
     return result;
