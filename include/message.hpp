@@ -37,11 +37,19 @@ class Message {
         float maxValue;
         SignalStatus status;     // determinado por Gateway
         bool isCritic;           // es sensor critico (true, false)
+        std::string name;
+        std::string unit;
+        uint64_t timeoutMs;
+        bool isShutdownRequest;
+        float activeValue;
         uint64_t timestampMs;    // milisegundos
     public: 
         // constructors
         Message();
-        Message(uint32_t id, SensorId sId, float val, bool critic, float min, float max);
+        Message(uint32_t id, SensorId sId, const std::string& sensorName,
+            const std::string& sensorUnit, float val, bool critic,
+            float min, float max, uint64_t timeout, bool shutdownRequest,
+            float shutdownValue);
         // setters
         void setMessageId(uint32_t id);
         void setSensorId(SensorId id);
@@ -59,13 +67,16 @@ class Message {
         float getMaxValue();
         SignalStatus getSignalStatus();
         bool getIsCritic();
+        uint64_t getTimeoutMs() const;
+        bool getIsShutdownRequest() const;
+        float getActiveValue() const;
         uint64_t getTimestamp();
-        const char* getUnit();
-        const char* getName();
+        const char *getUnit() const;
+        const char *getName() const;
         // Methods
-        std::string getMessageString();
-        std::string getStdMessageString();
-        std::string getStdColorsMessageString();
+        std::string getMessageString() const;
+        std::string getStdMessageString() const;
+        std::string getStdColorsMessageString() const;
 };
 
 #endif

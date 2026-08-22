@@ -5,9 +5,31 @@
 #include "../include/getaway.hpp"
 #include "../include/message.hpp"
 #include "../include/mssgmanager.hpp"
-#include <cstddef>
+#include <vector>
 
-void userSimulation(InitValues INIT_VALUES[], size_t sensors, Message SensorsArray[], MessageManager &mssgManager, Gateway &gateway, Control &control);
-void randomSimulation(InitValues INIT_VALUES[], size_t sensors, Message SensorsArray[], MessageManager &mssgManager, Gateway &gateway, Control &control);
+#define SPEED_VALUE     500
+#define TOLERANCE_VALUE 10.0f
+#define USER_MSSG_SIZE  50
+
+struct KeyPressed {
+    bool pressed;
+    char key;
+};
+
+void userSimulation(
+    const std::vector<InitValues>& initValues,
+    std::vector<Message>& sensorsArray,
+    MessageManager &mssgManager,
+    Gateway &gateway,
+    Control &control
+);
+
+void randomSimulation(
+    const std::vector<InitValues>& initValues,
+    std::vector<Message>& sensorsArray,
+    MessageManager &mssgManager,
+    Gateway &gateway,
+    Control &control
+);
 
 #endif

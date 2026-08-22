@@ -13,10 +13,15 @@
 #define TXT_PURPLE  "\033[35m"
 
 void cleanScreen();
+
 uint64_t get_timestamp_ms();
+
 std::mt19937& get_generator();
+
 int randomInt(int min, int max);
+
 float randomFloat(float min, float max);
+
 bool isNumber(const std::string &str);
 
 #endif

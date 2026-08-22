@@ -4,103 +4,75 @@
 #include <iostream>
 #include <string>
 
-Control::Control() : state(EcuState::INIT), errors(0) {}
+Control::Control(std::size_t maxInvalidSignals)
+        : state(EcuState::INIT), errors(0), shutdownRequested(false),
+            maxInvalidSignals(maxInvalidSignals) {}
 
 void Control::reset() {
     state = EcuState::INIT;
     errors = 0;
-    validSignals.assign(validSignals.size(), false);
+    signals.clear();
+    shutdownRequested = false;
 }
 
 bool Control::allSignalsValid() {
-    for (std::size_t signal = 0; signal < validSignals.size(); signal++) {
-        if (!validSignals[signal]) {
+    for (std::size_t signal = 0; signal < signals.size(); signal++) {
+        if (signals[signal].status != SignalStatus::VALID) {
             return false;
         }
     }
     return true;
 }
 
-bool Control::isWarningCondition(Message &mssg) {
-    bool condition = mssg.getRawValue() < mssg.getMinValue() || mssg.getRawValue() > mssg.getMaxValue(); 
-    return (condition && !mssg.getIsCritic());
-}
-
-bool Control::isCriticalCondition(Message &mssg){
-    bool condition = mssg.getRawValue() < mssg.getMinValue() || mssg.getRawValue() > mssg.getMaxValue(); 
-    return (condition && mssg.getIsCritic());
-}
-
-void Control::processMessage(Message &mssg, uint8_t signal) {
-    if (signal < validSignals.size()) {
-        validSignals[signal] = mssg.getSignalStatus() == SignalStatus::VALID; 
-        validSignals[signal] = validSignals[signal] && !isWarningCondition(mssg); 
-        validSignals[signal] = validSignals[signal] && !isCriticalCondition(mssg);
+void Control::updateState() {
+    std::size_t invalidSignals = 0;
+    bool criticalFailure = false;
+    for (std::size_t signal = 0; signal < signals.size(); signal++) {
+        if (signals[signal].status != SignalStatus::VALID) {
+            invalidSignals++;
+            if (signals[signal].critical) {
+                criticalFailure = true;
+            }
+        }
     }
+    if (allSignalsValid()) {
+        state = EcuState::OPERATIONAL;
+    } else if (criticalFailure || invalidSignals > maxInvalidSignals) {
+        state = EcuState::SAFE_STATE;
+    } else {
+        state = EcuState::DEGRADED;
+    }
+}
 
-    // SHUT_REQ 
-    if (mssg.getSensorId() == SensorId::SHUT_REQ && mssg.getRawValue() == 1.0f) {
-        state = EcuState::SHUTDOWN;
-        std::cout << TXT_YELLOW << "[CONTROL TRANSITION] SHUTDOWN -> SHUT_REQ" << TXT_RESET << std::endl;
+void Control::processMessage(Message &mssg) {
+    SignalRecord* record = 0;
+    for (std::size_t signal = 0; signal < signals.size(); signal++) {
+        if (signals[signal].messageId == mssg.getMessageId()) {
+            record = &signals[signal];
+            break;
+        }
+    }
+    if (record == 0) {
+        SignalRecord newRecord = {mssg.getMessageId(), SignalStatus::UNDEFINED, false};
+        signals.push_back(newRecord);
+        record = &signals.back();
+    }
+    record->status = mssg.getSignalStatus();
+    record->critical = mssg.getIsCritic();
+    if (mssg.getIsShutdownRequest() && mssg.getRawValue() == mssg.getActiveValue()) {
+        shutdownRequested = true;
+    }
+    if (state == EcuState::SHUTDOWN) {
         return;
     }
-    // FSM
-    switch (state) {
-        case EcuState::INIT:
-            errors = 0;
-            state = EcuState::SELF_TEST;
-            break;
-        case EcuState::SELF_TEST:
-            // voltaje
-            if (mssg.getSensorId() == SensorId::VOLTAGE) {
-                if (mssg.getRawValue() >= mssg.getMaxValue() && mssg.getSignalStatus() == SignalStatus::VALID) {
-                    state = EcuState::OPERATIONAL;
-                    std::cout << TXT_GREEN << "[CONTROL] SELF_TEST Exitoso -> OPERATIONAL" << TXT_RESET << std::endl;
-                } else {
-                    state = EcuState::SAFE_STATE;
-                    std::cout << TXT_RED << "[CONTROL] SELF_TEST Fallido -> SAFE_STATE" << TXT_RESET << std::endl;
-                }
-            }
-            break;
-        case EcuState::OPERATIONAL:
-            // falla critica
-            if (isCriticalCondition(mssg)) {
-                errors++;
-                state = EcuState::SAFE_STATE;
-                std::cout << TXT_RED << "[CONTROL] Condición Crítica -> SAFE_STATE" << TXT_RESET << std::endl;
-            } 
-            // warning
-            else if (isWarningCondition(mssg) || mssg.getSignalStatus() != SignalStatus::VALID) {
-                errors++;
-                state = EcuState::DEGRADED;
-                std::cout << TXT_YELLOW << "[CONTROL] Advertencia / Señal no crítica inválida -> DEGRADED" << TXT_RESET << std::endl;
-            }
-            break;
-        case EcuState::DEGRADED:
-            // condicion critica en degradado
-            if (isCriticalCondition(mssg)) {
-                state = EcuState::SAFE_STATE;
-                std::cout << TXT_RED << "[CONTROL] Falla Crítica en Modo Degradado -> SAFE_STATE" << TXT_RESET << std::endl;
-            }
-            // Recuperacion cuando todas las senales vuelven a ser validas
-            else if (allSignalsValid()) {
-                state = EcuState::OPERATIONAL;
-                std::cout << TXT_GREEN << "[CONTROL] Señales Normalizadas -> OPERATIONAL" << TXT_RESET << std::endl;
-            }
-            break;
-        case EcuState::SAFE_STATE:
-            // SHUTDOWN 
-            if (mssg.getSensorId() == SensorId::SPEED && mssg.getRawValue() == 0.0f) {
-                state = EcuState::SHUTDOWN;
-                std::cout << TXT_BLUE << "[CONTROL] Vehículo Detenido en Estado Seguro -> SHUTDOWN" << TXT_RESET << std::endl;
-            } else if (allSignalsValid()) {
-                state = EcuState::OPERATIONAL;
-                std::cout << TXT_GREEN << "[CONTROL] Señales Normalizadas -> OPERATIONAL" << TXT_RESET << std::endl;
-            }
-            break;
-        case EcuState::SHUTDOWN:
-            // Estado de parada final
-            break;
+    if (state == EcuState::INIT) {
+        errors = 0;
+        state = EcuState::SELF_TEST;
+        return;
+    }
+    updateState();
+    if (shutdownRequested && (state == EcuState::DEGRADED || state == EcuState::SAFE_STATE)) {
+        state = EcuState::SHUTDOWN;
     }
 }
 

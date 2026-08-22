@@ -1,59 +1,86 @@
 #include "../include/simulations.hpp"
 #include "../include/utils.hpp"
-#include <chrono>
 #include <iostream>
 #include <limits>
 #include <thread>
+#include <unistd.h>
+#include <termios.h>
+#include <fcntl.h>
+#include <string>
+#include <vector>
 
-#define SPEED_VALUE     500
-#define TOLERANCE_VALUE 10.0f
-#define USER_MSSG_SIZE  50
+KeyPressed detectKey(char &tecla) {
+    KeyPressed keypressed;
+    char c;
+    int bytes = read(STDIN_FILENO, &c, 1);
+    if (bytes > 0) {
+        tecla = c;
+        keypressed.key = c;
+        keypressed.pressed = true;
+        return keypressed;
+    }
+    keypressed.key = '\0';
+    keypressed.pressed = false;
+    return keypressed;
+}
 
-void configureTerminal(bool enable);
-bool detectKey(char &tecla);
+void configureTerminal(bool enable) {
+    static struct termios oldt, newt;
+    if (enable) {
+        tcgetattr(STDIN_FILENO, &oldt);
+        newt = oldt;
+        newt.c_lflag &= ~(ICANON | ECHO);
+        tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+        int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
+        fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK);
+    } else {
+        tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+        int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
+        fcntl(STDIN_FILENO, F_SETFL, flags & ~O_NONBLOCK);
+    }
+}
 
-void initializeMessages(InitValues INIT_VALUES[], size_t sensors, Message SensorsArray[], MessageManager &mssgManager) {
-	for (size_t sensor = 0; sensor < sensors; sensor++) {
-		mssgManager.InitMessage(INIT_VALUES[sensor], SensorsArray[sensor]);
+void initializeMessages(const std::vector<InitValues>& initValues, std::vector<Message>& sensorsArray, MessageManager& mssgManager) {
+	for (size_t sensor = 0; sensor < initValues.size(); sensor++) {
+		Message mssg = mssgManager.InitMessage(initValues[sensor]);
+		sensorsArray.push_back(mssg);
 	}
 }
 
-void validateMessages(size_t sensors, Message SensorsArray[], Gateway &gateway) {
-	for (size_t sensor = 0; sensor < sensors; sensor++) {
-		gateway.validateMessage(SensorsArray[sensor], get_timestamp_ms());
+void validateMessages(std::vector<Message>& sensorsArray, Gateway& gateway) {
+	for (size_t sensor = 0; sensor < sensorsArray.size(); sensor++) {
+		gateway.validateMessage(sensorsArray[sensor], get_timestamp_ms());
 	}
 }
 
-void processMessages(size_t sensors, Message SensorsArray[], Control &control) {
-	for (size_t sensor = 0; sensor < sensors; sensor++) {
-		control.processMessage(SensorsArray[sensor], (uint8_t)sensor);
+void processMessages(std::vector<Message>& sensorsArray, Control& control) {
+	for (size_t sensor = 0; sensor < sensorsArray.size(); sensor++) {
+		control.processMessage(sensorsArray[sensor]);
 	}
-	control.printCurrentState();
 }
 
-void printMessages(size_t sensors, Message SensorsArray[]) {
-	for (size_t sensor = 0; sensor < sensors; sensor++) {
-		std::cout << SensorsArray[sensor].getStdColorsMessageString() << std::endl;
+void printMessages(const std::vector<Message>& sensorsArray) {
+	for (size_t sensor = 0; sensor < sensorsArray.size(); sensor++) {
+		std::cout << sensorsArray[sensor].getStdColorsMessageString() << std::endl;
 		//std::cout << SensorsArray[sensor].getMessageString() << std::endl;
 	}
 }
 
 void userSimulation(
-	InitValues INIT_VALUES[], 
-	size_t sensors, 
-	Message SensorsArray[], 
+	const std::vector<InitValues>& initValues,
+	std::vector<Message>& sensorsArray,
 	MessageManager &mssgManager, 
 	Gateway &gateway, 
 	Control &control
 ) {
 	// init sensors
-	initializeMessages(INIT_VALUES, sensors, SensorsArray, mssgManager);
+	initializeMessages(initValues, sensorsArray, mssgManager);
 	// main loop
     while (true) {
 		// clean screen
 		cleanScreen();
 		// show menu
-		int option;
+		short option;
 		std::cout << "1. Ingresar valores de senales" << std::endl;
 		std::cout << "2. Mostrar estado del sistema" << std::endl;
 		std::cout << "3. Salir" << std::endl;
@@ -70,11 +97,13 @@ void userSimulation(
 		if (option == 1) {
 			std::cout << std::endl;
 			// option 1 : read signals
-			for(size_t mssg=0; mssg<sensors; mssg++){
+			for(size_t mssg=0; mssg<sensorsArray.size(); mssg++){
 				std::string value_str;
 				float value;
 				// user message
-				std::string user_mssg = std::string("Introduce valor de ") + SensorsArray[mssg].getName() + " (" + SensorsArray[mssg].getUnit() + "):";
+				std::string user_mssg = std::string("Introduce valor de ")
+					+ sensorsArray[mssg].getName()
+					+ " (" + sensorsArray[mssg].getUnit() + "):";
 				short spaces = USER_MSSG_SIZE - user_mssg.size();
 				for(short i=0; i<spaces; i++) user_mssg += " ";
 				// show user message and read value
@@ -82,18 +111,17 @@ void userSimulation(
 				std::cin >> value_str;
 				if(isNumber(value_str)) value = std::stof(value_str);
 				else value = 0.0f;
-				mssgManager.UpdateMessage(get_timestamp_ms(), value, SensorsArray[mssg]);
+				mssgManager.UpdateMessage(get_timestamp_ms(), value, sensorsArray[mssg]);
 			}
 			// validate & process
-			validateMessages(sensors, SensorsArray, gateway);
-			processMessages(sensors, SensorsArray, control);
-			//printMessages(sensors, SensorsArray);
+			validateMessages(sensorsArray, gateway);
+			processMessages(sensorsArray, control);
 		} else if (option == 2) {
 			// option 2 : show state
 			std::cout << std::endl;
             control.printCurrentState();
             std::cout << std::endl;
-			printMessages(sensors, SensorsArray);
+			printMessages(sensorsArray);
 			std::cout << std::endl << "Presione enter para continuar ...";
 			std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 			std::cin.get();
@@ -108,58 +136,60 @@ void userSimulation(
 }
 
 void randomSimulation(
-	InitValues INIT_VALUES[], 
-	size_t sensors, 
-	Message SensorsArray[], 
+	const std::vector<InitValues>& initValues,
+	std::vector<Message>& sensorsArray,
 	MessageManager &mssgManager, 
 	Gateway &gateway, 
 	Control &control
 ) {
 	// init sensors
-	initializeMessages(INIT_VALUES, sensors, SensorsArray, mssgManager);
+	initializeMessages(initValues, sensorsArray, mssgManager);
 	bool isBraked = false;
 	bool shutdownRequested = false;
-	char command = 0;
 	configureTerminal(true);
 	// main loop
 	while (true) {
-		// clean screen
+		// clean screen and print states
 		cleanScreen();
 		std::cout << "Para simular freno presione:   'B' o 'b'" << std::endl;
         std::cout << "Para simular apagado presione: 'S' o 's'" << std::endl;
 		std::cout << std::endl;
+		control.printCurrentState();
+		std::cout << std::endl;
+		printMessages(sensorsArray);
+		std::cout << std::endl;
 		// update values
-		if (detectKey(command) && (command == 'b' || command == 'B')) {
+		char command = 0;
+		KeyPressed keypressed = detectKey(command);
+		if (keypressed.pressed && (keypressed.key == 'b' || keypressed.key == 'B')) {
 			isBraked = !isBraked;
-		} else if (command == 's' || command == 'S') {
+		} else if (keypressed.pressed && (keypressed.key == 's' || keypressed.key == 'S')) {
 			shutdownRequested = true;
 		}
 		// update values
-		for (size_t sensor = 0; sensor < sensors; sensor++) {
-			if(SensorsArray[sensor].getSensorId()!=SensorId::BRAKE && SensorsArray[sensor].getSensorId()!=SensorId::SHUT_REQ){
-				float min = SensorsArray[sensor].getMinValue() - TOLERANCE_VALUE;
-				float max = SensorsArray[sensor].getMaxValue() + TOLERANCE_VALUE;
+		for (size_t sensor = 0; sensor < sensorsArray.size(); sensor++) {
+			if(sensorsArray[sensor].getSensorId()!=SensorId::BRAKE && sensorsArray[sensor].getSensorId()!=SensorId::SHUT_REQ){
+				float min = sensorsArray[sensor].getMinValue() - TOLERANCE_VALUE;
+				float max = sensorsArray[sensor].getMaxValue() + TOLERANCE_VALUE;
 				float val = randomFloat(min, max);
-				mssgManager.UpdateMessage(get_timestamp_ms(), val, SensorsArray[sensor]);
+				mssgManager.UpdateMessage(get_timestamp_ms(), val, sensorsArray[sensor]);
 			}
-			if(SensorsArray[sensor].getSensorId() == SensorId::BRAKE){
-				mssgManager.UpdateMessage(get_timestamp_ms(), isBraked ? 1.0f : 0.0f, SensorsArray[sensor]);
+			if(sensorsArray[sensor].getSensorId()==SensorId::BRAKE){
+				mssgManager.UpdateMessage(get_timestamp_ms(), isBraked ? 1.0f : 0.0f, sensorsArray[sensor]);
 			}
-			if(SensorsArray[sensor].getSensorId() == SensorId::SHUT_REQ){
-				mssgManager.UpdateMessage(get_timestamp_ms(), shutdownRequested ? 1.0f : 0.0f, SensorsArray[sensor]);
+			if(sensorsArray[sensor].getSensorId()==SensorId::SHUT_REQ){
+				mssgManager.UpdateMessage(get_timestamp_ms(), shutdownRequested ? 1.0f : 0.0f, sensorsArray[sensor]);
 			}
 		}
 		// validate sensors
-		validateMessages(sensors, SensorsArray, gateway);
-		processMessages(sensors, SensorsArray, control);
-        std::cout << std::endl;
-		printMessages(sensors, SensorsArray);
+		validateMessages(sensorsArray, gateway);
+		processMessages(sensorsArray, control);
 		// if shutdown request
-		if (command == 's' || command == 'S') {
+		if (shutdownRequested) {
 			cleanScreen();
 			control.printCurrentState();
 			std::cout << std::endl;
-			printMessages(sensors, SensorsArray);
+			printMessages(sensorsArray);
 			configureTerminal(false);
             std::cout << std::endl;
 			return;

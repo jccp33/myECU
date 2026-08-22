@@ -36,7 +36,7 @@ g++ -Wall -Wextra -pedantic -std=c++11
 
 ```text
 .
-├── main.cpp                 # Punto de entrada y configuracion de sensores
+├── main.cpp                 # Punto de entrada y seleccion de simulacion
 ├── Makefile                 # Compilacion, ejecucion y limpieza
 ├── include/
 │   ├── control.hpp          # Maquina de estados y control de senales
@@ -48,7 +48,8 @@ g++ -Wall -Wextra -pedantic -std=c++11
 ├── src/
 │   ├── control.cpp
 │   ├── getaway.cpp
-│   ├── message.cpp           # Implementacion y tabla de metadatos
+│   ├── message.cpp           # Implementacion del modelo Message
+│   ├── config.cpp            # Configuracion central de sensores y ECU
 │   ├── mssgmanager.cpp
 │   ├── simulations.cpp
 │   └── utils.cpp
@@ -59,7 +60,7 @@ g++ -Wall -Wextra -pedantic -std=c++11
 
 ```mermaid
 flowchart LR
-    A[main.cpp] --> B[InitValues]
+    A[config.cpp] --> B[SystemConfig]
     B --> C[MessageManager]
     C --> D[Message]
     D --> E[Gateway]
@@ -78,7 +79,7 @@ El flujo comun de ambas simulaciones es:
 
 ## Sensores configurados
 
-Actualmente `main.cpp` configura 10 senales:
+Actualmente `config.cpp` configura 10 senales:
 
 | `SensorId` | Descripcion | Unidad | Critica |
 |---|---|---:|:---:|
@@ -93,7 +94,7 @@ Actualmente `main.cpp` configura 10 senales:
 | `MAF` | Flujo de masa de aire | `g/s` | No |
 | `O2` | Sensor de oxigeno | `V` | No |
 
-Los nombres y unidades no se guardan dentro de cada `Message`. La tabla constante `SENSOR_METADATA` de `src/message.cpp` los comparte usando el valor de `SensorId` como indice.
+Los nombres, unidades, limites, criticidad y timeout se guardan en la configuracion de cada senal y se transfieren al `Message`. La logica no depende de que los valores de `SensorId` sean posiciones consecutivas.
 
 ## Clases y enumeraciones
 
@@ -115,8 +116,8 @@ Funciones principales:
 |---|---|
 | `setRawValue()` | Actualiza el valor de la senal. |
 | `setTimesStamp()` | Actualiza el timestamp. |
-| `getName()` | Obtiene el nombre desde la tabla constante. |
-| `getUnit()` | Obtiene la unidad desde la tabla constante. |
+| `getName()` | Obtiene el nombre configurado para la senal. |
+| `getUnit()` | Obtiene la unidad configurada para la senal. |
 | `getSignalStatus()` | Consulta `VALID`, `OUT_OF_RANGE`, `TIMEOUT` o `UNDEFINED`. |
 | `getMessageString()` | Genera una representacion detallada. |
 | `getStdMessageString()` | Genera una representacion legible. |
@@ -129,7 +130,11 @@ Gestiona el ciclo de vida basico de los mensajes:
 - `InitMessage()`: construye un `Message` a partir de `InitValues`.
 - `UpdateMessage()`: actualiza valor y timestamp sin modificar los limites.
 
-`InitValues` contiene la configuracion inicial de cada senal: ID, tipo, valor inicial, rango y criticidad.
+`InitValues` contiene la configuracion inicial de cada senal: ID, tipo, nombre, unidad, valor inicial, rango, criticidad, timeout y comportamiento de apagado.
+
+### `SystemConfig`
+
+`config.cpp` construye la configuracion del sistema. Contiene la lista de sensores y el maximo de senales invalidas permitido antes de pasar a `SAFE_STATE`.
 
 ### `Gateway`
 
@@ -140,7 +145,7 @@ Valida cada mensaje mediante `validateMessage()`:
 3. Si no expiro, comprueba que el valor este entre minimo y maximo.
 4. Asigna `VALID` o `OUT_OF_RANGE`.
 
-El timeout global actual es de 500 ms.
+Cada senal tiene su propio timeout configurado.
 
 ### `Control`
 

@@ -2,6 +2,8 @@
 #include <chrono>
 #include <sstream>
 
+// functions
+
 void cleanScreen(){
     #ifdef _WIN32
         std::system("cls");

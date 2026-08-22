@@ -15,6 +15,7 @@ BUILD_DIR = build
 # Archivos fuente
 SOURCES = main.cpp \
 		  $(SRC_DIR)/message.cpp \
+		  $(SRC_DIR)/config.cpp \
 		  $(SRC_DIR)/utils.cpp \
 		  $(SRC_DIR)/mssgmanager.cpp \
 		  $(SRC_DIR)/getaway.cpp \
@@ -24,6 +25,7 @@ SOURCES = main.cpp \
 # Archivos objeto
 OBJECTS = $(BUILD_DIR)/main.o \
 		  $(BUILD_DIR)/message.o \
+		  $(BUILD_DIR)/config.o \
 		  $(BUILD_DIR)/utils.o \
 		  $(BUILD_DIR)/mssgmanager.o \
 		  $(BUILD_DIR)/getaway.o \
@@ -63,6 +65,11 @@ $(BUILD_DIR)/utils.o: $(SRC_DIR)/utils.cpp $(INCLUDE_DIR)/utils.hpp
 	@echo "✓ Compilado: $<"
 
 $(BUILD_DIR)/message.o: $(SRC_DIR)/message.cpp $(INCLUDE_DIR)/message.hpp
+	mkdir -p $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
+	@echo "✓ Compilado: $<"
+
+$(BUILD_DIR)/config.o: $(SRC_DIR)/config.cpp $(INCLUDE_DIR)/config.hpp $(INCLUDE_DIR)/mssgmanager.hpp
 	mkdir -p $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
 	@echo "✓ Compilado: $<"

@@ -2,7 +2,10 @@
 #define CONTROL_HPP
 
 #include "../include/message.hpp"
+#include <cstddef>
 #include <vector>
+
+#define MAX_INVALID_SIGNALS 3
 
 enum class EcuState {
     INIT = 0,
@@ -15,18 +18,24 @@ enum class EcuState {
 
 class Control {
     private:
+        struct SignalRecord {
+            uint32_t messageId;
+            SignalStatus status;
+            bool critical;
+        };
         EcuState state;
         uint32_t errors;
-        std::vector<bool> validSignals;
-        bool isWarningCondition(Message& mssg);
-        bool isCriticalCondition(Message& mssg);
+        std::vector<SignalRecord> signals;
+        bool shutdownRequested;
+        std::size_t maxInvalidSignals;
         bool allSignalsValid();
+        void updateState();
     public:
         // constructors
-        Control();
+        explicit Control(std::size_t maxInvalidSignals = 4);
         // methods
         void reset();
-        void processMessage(Message& mssg, uint8_t signal);
+        void processMessage(Message &mssg);
         EcuState getCurrentState(){ return state; }
         void printCurrentState();
 };

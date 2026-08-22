@@ -4,31 +4,6 @@
 #include <sstream>
 #include <iomanip>
 
-struct SensorMetadata {
-    const char* name;
-    const char* unit;
-};
-
-const SensorMetadata SENSOR_METADATA[] = {
-    {"Solicitud de Apagado", "S_R"},
-    {"Velocidad", "km/h"},
-    {"Revoluciones X minuto", "RPM"},
-    {"Temperatura", "C"},
-    {"Voltaje", "V"},
-    {"Solicitud de Freno", "BRK"},
-    {"Posicion de Mariposa", "V"},
-    {"Presion Absoluta", "V"},
-    {"Flujo de masa de aire", "g/s"},
-    {"Sensor de Oxigeno", "V"},
-    {"Indefinido", ""}
-};
-
-const SensorMetadata& getSensorMetadata(SensorId sensorId) {
-    const std::size_t index = static_cast<std::size_t>(sensorId);
-    const std::size_t metadataCount = sizeof(SENSOR_METADATA) / sizeof(SENSOR_METADATA[0]);
-    return SENSOR_METADATA[index < metadataCount ? index : metadataCount - 1];
-}
-
 // constructors
 Message::Message(){
     messageId = 0;
@@ -38,17 +13,28 @@ Message::Message(){
     maxValue = 0.0f;
     status = SignalStatus::UNDEFINED;
     isCritic = false;
+    timeoutMs = 0;
+    isShutdownRequest = false;
+    activeValue = 0.0f;
     timestampMs = get_timestamp_ms();
 }
 
-Message::Message(uint32_t id, SensorId sId, float val, bool critic, float min, float max){
+Message::Message(uint32_t id, SensorId sId, const std::string& sensorName,
+                 const std::string& sensorUnit, float val, bool critic,
+                 float min, float max, uint64_t timeout, bool shutdownRequest,
+                 float shutdownValue){
     messageId = id;
     sensorId = sId;
+    name = sensorName;
+    unit = sensorUnit;
     rawValue = val;
     minValue = min;
     maxValue = max;
     status = SignalStatus::VALID;
     isCritic = critic;
+    timeoutMs = timeout;
+    isShutdownRequest = shutdownRequest;
+    activeValue = shutdownValue;
     timestampMs = get_timestamp_ms();
 }
 
@@ -114,20 +100,32 @@ bool Message::getIsCritic() {
     return isCritic;
 }
 
+uint64_t Message::getTimeoutMs() const {
+    return timeoutMs;
+}
+
+bool Message::getIsShutdownRequest() const {
+    return isShutdownRequest;
+}
+
+float Message::getActiveValue() const {
+    return activeValue;
+}
+
 uint64_t Message::getTimestamp() {
     return timestampMs;
 }
 
-const char* Message::getUnit() {
-    return getSensorMetadata(sensorId).unit;
+const char* Message::getUnit() const {
+    return unit.c_str();
 }
 
-const char* Message::getName(){
-    return getSensorMetadata(sensorId).name;
+const char* Message::getName() const {
+    return name.c_str();
 }
 
 // methods
-std::string Message::getMessageString(){
+std::string Message::getMessageString() const {
     // status to string
     std::string _status = "";
     if(status == SignalStatus::VALID) _status = "VALID";
@@ -150,7 +148,7 @@ std::string Message::getMessageString(){
     return result;
 }
 
-std::string Message::getStdMessageString(){
+std::string Message::getStdMessageString() const {
     // status to string
     std::string _status = "";
     if(status == SignalStatus::VALID) _status = "valido";
@@ -168,7 +166,7 @@ std::string Message::getStdMessageString(){
     return result;
 }
 
-std::string Message::getStdColorsMessageString(){
+std::string Message::getStdColorsMessageString() const {
     // status to string
     std::string _status = "";
     if(status == SignalStatus::VALID) _status = "valido";
@@ -183,7 +181,7 @@ std::string Message::getStdColorsMessageString(){
     else txtColor = TXT_YELLOW;
     // result
     std::stringstream ss;
-    ss << std::left  
+    ss << std::left
     << std::setw(24) << getName()
        << std::setw(10) << std::fixed << std::setprecision(2) << rawValue 
     << std::setw(6) << getUnit()
