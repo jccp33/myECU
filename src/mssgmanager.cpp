@@ -7,8 +7,6 @@ Message MessageManager::InitMessage(
     return Message(
         values.id,
         values.sId,
-        values.name,
-        values.unit,
         values.value,
         values.isCritic,
         values.minValue,

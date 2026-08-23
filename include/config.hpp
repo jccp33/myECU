@@ -1,8 +1,9 @@
 #ifndef CONFIG_HPP
 #define CONFIG_HPP
 
-#include "../include/mssgmanager.hpp"
+#include "data_types.hpp"
 
 SystemConfig getSystemConfig();
+bool isSystemConfigValid(const SystemConfig& config);
 
 #endif

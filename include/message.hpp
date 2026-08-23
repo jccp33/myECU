@@ -1,33 +1,7 @@
 #ifndef MESSAGE_HPP
 #define MESSAGE_HPP
 
-#include <cstdint>
-#include <string>
-
-using TimestampMs = std::uint64_t;
-
-// Sensores
-enum class SensorId : uint8_t {
-    SHUT_REQ,  // solicitud de apagado
-    SPEED,     // velocidad (km/h)
-    RPM,       // revoluciones por minuto
-    TEMP,      // temperatura (°C)
-    VOLTAGE,   // voltaje (V)
-    BRAKE,     // freno
-    TPS,       // Posición de la Mariposa del Acelerador
-    MAP,       // Presión Absoluta del Múltiple de Admisión
-    MAF,       // Flujo de Masa de Aire
-    O2,        // Sensor de Oxígeno (Sonda Lambda - Convencional de Zirconio)
-    UNDEFINED  // indefinido
-};
-
-// Estados (evaluado por la Gateway ECU)
-enum class SignalStatus : uint8_t {
-    VALID = 0,
-    OUT_OF_RANGE = 1,
-    TIMEOUT = 2,
-    UNDEFINED = 3  // indefinido
-};
+#include "data_types.hpp"
 
 // Mensaje
 class Message {
@@ -39,8 +13,6 @@ class Message {
         float maxValue;
         SignalStatus status;     // determinado por Gateway
         bool isCritic;           // es sensor critico (true, false)
-        std::string name;
-        std::string unit;
         TimestampMs timeoutMs;
         bool isShutdownRequest;
         float activeValue;
@@ -51,8 +23,6 @@ class Message {
         Message(
             uint32_t id, 
             SensorId sId, 
-            const std::string &sensorName,
-            const std::string &sensorUnit, 
             float val, 
             bool critic,
             float min, 
@@ -83,8 +53,6 @@ class Message {
         bool getIsShutdownRequest() const;
         float getActiveValue() const;
         TimestampMs getTimestamp() const;
-        const std::string &getUnit() const;
-        const std::string &getName() const;
 };
 
 #endif

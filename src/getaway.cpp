@@ -9,7 +9,11 @@ void Gateway::validateMessage(Message &mssg, TimestampMs currentTimeMs) const {
         mssg.setSignalStatus(SignalStatus::TIMEOUT);
         return;
     }
-    bool isValid = validateValue(mssg.getRawValue(), mssg.getMinValue(), mssg.getMaxValue());
+    bool isValid = validateValue(
+        mssg.getRawValue(),
+        mssg.getMinValue(),
+        mssg.getMaxValue()
+    );
     if(isValid){
         mssg.setSignalStatus(SignalStatus::VALID);
     }else{

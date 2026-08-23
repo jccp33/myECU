@@ -23,7 +23,8 @@ void configureTerminal(bool enable) {
     if (enable) {
         tcgetattr(STDIN_FILENO, &oldt);
         newt = oldt;
-        const tcflag_t flagsToDisable = static_cast<tcflag_t>(ICANON) | static_cast<tcflag_t>(ECHO);
+        const tcflag_t flagsToDisable = static_cast<tcflag_t>(ICANON) |
+            static_cast<tcflag_t>(ECHO);
 		newt.c_lflag &= static_cast<tcflag_t>(~flagsToDisable);
         tcsetattr(STDIN_FILENO, TCSANOW, &newt);
         int flags = fcntl(STDIN_FILENO, F_GETFL, 0);

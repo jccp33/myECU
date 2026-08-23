@@ -1,7 +1,7 @@
 #ifndef GETAWAY_HPP
 #define GETAWAY_HPP
 
-#include "../include/message.hpp"
+#include "message.hpp"
 
 class Gateway {
     private:

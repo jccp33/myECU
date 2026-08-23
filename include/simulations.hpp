@@ -1,30 +1,36 @@
 #ifndef SIMULATIONS_HPP
 #define SIMULATIONS_HPP
 
-#include "../include/control.hpp"
-#include "../include/getaway.hpp"
-#include "../include/message.hpp"
-#include "../include/mssgmanager.hpp"
+#include "control.hpp"
+#include "getaway.hpp"
+#include "fault_manager.hpp"
+#include "message.hpp"
+#include "mssgmanager.hpp"
+#include "signal_store.hpp"
+
+#include <array>
 #include <cstddef>
-#include <vector>
 
 constexpr std::size_t USER_MESSAGE_WIDTH = 50U;
 #define SPEED_VALUE     500
-#define TOLERANCE_VALUE 10.0f
 
 void userSimulation(
-    const std::vector<InitValues>& initValues,
-    std::vector<Message>& sensorsArray,
+    const SystemConfig& config,
+    std::array<Message, MAX_SENSOR_COUNT>& sensorsArray,
     MessageManager &mssgManager,
     Gateway &gateway,
+    SignalStore& signalStore,
+    FaultManager& faultManager,
     Control &control
 );
 
 void randomSimulation(
-    const std::vector<InitValues>& initValues,
-    std::vector<Message>& sensorsArray,
+    const SystemConfig& config,
+    std::array<Message, MAX_SENSOR_COUNT>& sensorsArray,
     MessageManager &mssgManager,
     Gateway &gateway,
+    SignalStore& signalStore,
+    FaultManager& faultManager,
     Control &control
 );
 

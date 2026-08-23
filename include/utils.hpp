@@ -1,8 +1,10 @@
 #ifndef UTILS_HPP
 #define UTILS_HPP
 
+#include <cstdint>
 #include <cstdlib>
 #include <random>
+#include <string>
 
 #define TXT_RESET   "\033[0m"
 #define TXT_RED     "\033[31m"
@@ -12,11 +14,11 @@
 #define TXT_CYAN    "\033[36m"
 #define TXT_PURPLE  "\033[35m"
 
-// methods
+// methods for simulations
 
 void cleanScreen();
 
-uint64_t get_timestamp_ms();
+std::uint64_t get_timestamp_ms();
 
 std::mt19937& get_generator();
 

@@ -12,7 +12,7 @@ void cleanScreen(){
     #endif
 }
 
-uint64_t get_timestamp_ms() {
+std::uint64_t get_timestamp_ms() {
     const std::chrono::milliseconds elapsed =
         std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::steady_clock::now().time_since_epoch()

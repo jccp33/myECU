@@ -17,8 +17,6 @@ Message createMessage(
     return Message(
         100U,
         SensorId::TPS,
-        "Test sensor",
-        "V",
         value,
         false,
         minimum,

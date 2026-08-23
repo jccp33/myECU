@@ -1,6 +1,8 @@
 # Directorios de compilación
 /build/
 /build-*/
+/cmake-build-*/
+/.cache/
 
 # Artefactos de C/C++
 *.o
@@ -19,12 +21,22 @@ cmake_install.cmake
 CTestTestfile.cmake
 Testing/
 compile_commands.json
+install_manifest.txt
+*.cmake.user
 
 # Cobertura y profiling
 *.gcda
 *.gcno
 *.profraw
 *.profdata
+*.lcov
+coverage/
+
+# Sanitizers, análisis y volcados
+asan.log*
+ubsan.log*
+*.stackdump
+/core.[0-9]*
 
 # Archivos temporales del editor o sistema
 *.swp
@@ -33,3 +45,5 @@ compile_commands.json
 
 # Configuración local de VS Code
 .vscode/
+.idea/
+.clangd/

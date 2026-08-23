@@ -18,8 +18,6 @@ Message::Message(){
 Message::Message(
     uint32_t id, 
     SensorId sId, 
-    const std::string &sensorName,
-    const std::string &sensorUnit, 
     float val, 
     bool critic,
     float min, 
@@ -31,8 +29,6 @@ Message::Message(
 ){
     messageId = id;
     sensorId = sId;
-    name = sensorName;
-    unit = sensorUnit;
     rawValue = val;
     minValue = min;
     maxValue = max;
@@ -120,12 +116,4 @@ float Message::getActiveValue() const {
 
 TimestampMs Message::getTimestamp() const {
     return timestampMs;
-}
-
-const std::string &Message::getUnit() const {
-    return unit;
-}
-
-const std::string &Message::getName() const {
-    return name;
 }
