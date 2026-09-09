@@ -5,10 +5,11 @@
 #include <cstdint>
 #include <array>
 
-// Fixed capacity for the set of signals supervised by this ECU Core. The
-// current configuration uses 10 entries; 128 stays within the 100-250 signal
-// budget documented for a small 112 KiB MCU while leaving deterministic RAM.
-constexpr std::size_t MAX_SENSOR_COUNT = 128U;
+#ifndef MYECU_MAX_SENSOR_COUNT
+#define MYECU_MAX_SENSOR_COUNT 128U
+#endif
+
+constexpr std::size_t MAX_SENSOR_COUNT = static_cast<std::size_t>(MYECU_MAX_SENSOR_COUNT);
 
 // enums 
 enum class SensorId : uint8_t {
