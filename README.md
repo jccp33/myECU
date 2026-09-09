@@ -1,40 +1,27 @@
 # myECU
 
-Simulador educativo de una ECU automotriz en C++11. Implementa una máquina de
-estados a nivel de sistema, supervisión configurable de señales, confirmación
-temporal de fallos y separación entre el CORE portable y la plataforma Linux.
+Prototipo educativo de una ECU automotriz en C++11 con CORE portable,
+simulador Linux y una primera plataforma bare-metal STM32.
 
-> Estado: prototipo funcional con arquitectura cercana a una implementación
-> embebida. No es software homologado ni debe instalarse en un vehículo.
+Implementa una máquina de estados a nivel de sistema, supervisión configurable
+de señales, confirmación temporal de fallos y separación entre lógica de ECU y
+dependencias de plataforma.
+
+Actualmente el mismo CORE se compila y ejecuta tanto en host como sobre un
+STM32F103C8T6.
+
+> Estado: prototipo funcional educativo. No es software homologado ni debe
+> instalarse en un vehículo.
 
 ![FSM objetivo de la ECU](docs/img/FSM.png)
 
 ## Arquitectura implementada
 
-```mermaid
-flowchart LR
-    subgraph Plataforma[Plataforma Linux / simulador]
-        UI[Teclado y consola]
-        CLK[Reloj monotónico]
-        PHY[Modelo físico de sensores]
-    end
-    subgraph Aplicacion[Adaptación de aplicación]
-        MSG[Message / Gateway]
-        CFG[SystemConfig y reglas]
-    end
-    subgraph Core[ECU Core portable]
-        STORE[SignalStore]
-        FM[FaultManager]
-        SUM[FaultSummary]
-        CTRL[Control]
-        FSM[ECU State Machine]
-    end
-    PHY --> MSG --> STORE
-    CLK --> STORE
-    CFG --> FM
-    STORE --> FM --> SUM --> CTRL --> FSM
-    UI --> MSG
-```
+Plataformas
+├── Linux / simulator
+└── STM32 / bare-metal
+
+MAX_SENSOR_COUNT ya es configurable por build
 
 Flujo de cada ciclo:
 
