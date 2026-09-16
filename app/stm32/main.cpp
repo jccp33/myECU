@@ -1,3 +1,4 @@
+#include "adc.hpp"
 #include "led.hpp"
 #include "time.hpp"
 #include "config.hpp"
@@ -6,12 +7,15 @@
 #include "fault_configuration.hpp"
 #include "fault_manager.hpp"
 #include "signal_store.hpp"
+#include "signal_acquisition.hpp"
 #include <cstdint>
 
 int main()
 {
+    // init objects
     platform::initLed();
     platform::initTime();
+    platform::initAdc();
     const SystemConfig systemConfig = getSystemConfig();
     const EvaluationRuleSet ruleSet = getEvaluationRuleSet();
     const FaultConfigurationError configurationError = validateEvaluationRuleSet(ruleSet, systemConfig);
@@ -20,17 +24,20 @@ int main()
     Control control;
     DiagnosticStatus diagnosticStatus = toDiagnosticStatus(configurationError);
     std::uint32_t previousTime = 0U;
+    // main loop
     while (true)
     {
         const std::uint32_t now = platform::millis();
         if ((now - previousTime) >= 100U) {
             previousTime = now;
+            // read samples
+            app::acquireSignals(signalStore, static_cast<TimestampMs>(now));
+            // process faults
             if (configurationError == FaultConfigurationError::NONE) {
-                const FaultManagerResult faultResult =
-                    faultManager.processCycle(
-                        signalStore,
-                        static_cast<TimestampMs>(now)
-                    );
+                const FaultManagerResult faultResult = faultManager.processCycle(
+                    signalStore,
+                    static_cast<TimestampMs>(now)
+                );
                 diagnosticStatus = toDiagnosticStatus(faultResult);
             }
             const FaultSummary faultSummary = faultManager.getSummary();
@@ -48,6 +55,6 @@ int main()
             platform::toggleLed();
         }
     }
-
+    // finish program
     return 0;
 }
