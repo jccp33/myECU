@@ -70,16 +70,29 @@ Valor digital de 12 bits
 El potenciómetro se conectó como divisor de voltaje:
 
 ```text
-3.3 V ─── extremo A
-             |
-          [ 10 kΩ ]
-             |
-PA0  ───── cursor
-             |
-          [ 10 kΩ ]
-             |
-GND  ───── extremo B
+3.3 V ───── extremo A
+               │
+               │
+          ┌────┴────┐
+          │   10 kΩ │
+          │   POT   │
+          └────┬────┘
+               │
+GND ────── extremo B
+               ↕ cursor
+               │
+               └──────── PA0 / ADC1_IN0
 ```
+
+El potenciómetro utilizado está marcado como `B103`, correspondiente a un
+valor nominal de 10 kΩ entre sus dos extremos.
+
+El cursor no representa una resistencia adicional de 10 kΩ. Su posición
+divide la resistencia total del potenciómetro en dos partes variables cuya
+suma permanece aproximadamente en 10 kΩ.
+
+Durante la validación se midieron aproximadamente 10.5 kΩ entre los extremos
+del componente.
 
 La entrada analógica se conectó a `PA0`, correspondiente a `ADC1_IN0`.
 
@@ -359,3 +372,290 @@ TPS → FaultManager → Control → EcuState
 porque actualmente solo el TPS se adquiere físicamente, mientras que las demás señales configuradas pueden generar fallas de timeout al no existir todavía muestras para ellas.
 
 La siguiente validación deberá comprobar de manera controlada la propagación de la falla del TPS hacia `Control` y `EcuState` sin que las señales aún no implementadas interfieran con el resultado.
+
+## Validación de integración TPS → Control → EcuState
+
+### Objetivo
+
+Validar en hardware que una entrada analógica física pueda propagarse a través
+de la arquitectura completa de diagnóstico y control de `myECU`, provocando un
+cambio observable en el estado global de la ECU.
+
+La cadena validada fue:
+
+```text
+Potenciómetro
+    ↓
+PA0 / ADC1_IN0
+    ↓
+platform::readAdc()
+    ↓
+Conversión ADC → voltaje
+    ↓
+SignalSample (TPS, ID 106)
+    ↓
+SignalStore
+    ↓
+FaultManager
+    ↓
+FaultSummary
+    ↓
+EcuStateInputs
+    ↓
+Control
+    ↓
+EcuState
+```
+
+### Estrategia de prueba
+
+Para aislar el efecto del TPS sobre el sistema se creó la aplicación de
+validación:
+
+```text
+app/stm32/control_test.cpp
+```
+
+El TPS (`SignalId 106`) permaneció como una entrada física adquirida mediante
+el ADC.
+
+Las otras nueve señales configuradas en `myECU` fueron insertadas
+periódicamente en `SignalStore` con valores nominales y timestamps
+actualizados. De esta forma se evitó que señales todavía no implementadas
+físicamente generaran fallas `RANGE` o `TIMEOUT` que pudieran interferir con
+la prueba.
+
+El ciclo de procesamiento se ejecutó cada 100 ms.
+
+La arquitectura utilizada durante la prueba fue:
+
+```text
+       Señales simuladas nominales
+       100–105, 107–109
+                │
+                │
+                ▼
+             SignalStore
+                ▲
+                │
+                │
+       TPS físico / ID 106
+                ▲
+                │
+        signal_acquisition
+                ▲
+                │
+             ADC1 / PA0
+                ▲
+                │
+          Potenciómetro
+                │
+                ▼
+            FaultManager
+                │
+                ▼
+           FaultSummary
+                │
+                ▼
+              Control
+                │
+                ▼
+             EcuState
+```
+
+### Instrumentación de validación
+
+Para observar directamente el resultado mediante GDB se utilizaron variables
+globales `volatile` dentro de la aplicación de prueba:
+
+```cpp
+volatile bool g_hasDegraded = false;
+volatile bool g_hasCriticalActive = false;
+volatile std::uint8_t g_ecuState = 0U;
+volatile std::uint8_t g_tpsFaultState = 0U;
+```
+
+La regla RANGE del TPS fue inspeccionada mediante:
+
+```cpp
+const FaultRecord* tpsFaultRecord =
+    faultManager.getRecord(12U);
+
+if (tpsFaultRecord != nullptr)
+{
+    g_tpsFaultState =
+        static_cast<std::uint8_t>(tpsFaultRecord->state);
+}
+```
+
+El índice `12` corresponde a la regla RANGE del TPS dentro del
+`EvaluationRuleSet` utilizado durante esta validación.
+
+Esta instrumentación pertenece exclusivamente a la aplicación de prueba y no
+forma parte de la interfaz de producción del core.
+
+### Caso 1: TPS fuera de rango
+
+Con el TPS en una condición inferior al límite mínimo configurado de `0.5 V`,
+se dejó ejecutar el sistema durante un tiempo suficiente para superar el
+tiempo de confirmación de la regla.
+
+GDB mostró:
+
+```text
+g_tpsFaultState     = 2
+g_hasDegraded       = true
+g_hasCriticalActive = false
+g_ecuState          = 3
+```
+
+De acuerdo con las enumeraciones del core:
+
+```text
+FaultState 2 = CONFIRMED
+EcuState   3 = DEGRADED
+```
+
+La propagación observada fue:
+
+```text
+TPS fuera de rango
+        ↓
+FaultState::CONFIRMED
+        ↓
+FaultSummary.hasDegraded = true
+        ↓
+EcuStateInputs
+        ↓
+Control::processInputs()
+        ↓
+EcuState::DEGRADED
+```
+
+**Resultado: PASS**
+
+### Caso 2: recuperación del TPS
+
+Posteriormente se llevó el potenciómetro nuevamente a una posición dentro del
+rango válido y se dejó ejecutar el firmware durante un intervalo superior al
+tiempo de recuperación configurado de `500 ms`.
+
+GDB mostró:
+
+```text
+g_tpsFaultState     = 0
+g_hasDegraded       = false
+g_hasCriticalActive = false
+g_ecuState          = 2
+```
+
+De acuerdo con las enumeraciones del core:
+
+```text
+FaultState 0 = INACTIVE
+EcuState   2 = OPERATIONAL
+```
+
+La propagación observada fue:
+
+```text
+TPS recuperado
+        ↓
+FaultState::INACTIVE
+        ↓
+FaultSummary.hasDegraded = false
+        ↓
+EcuStateInputs
+        ↓
+Control::processInputs()
+        ↓
+EcuState::OPERATIONAL
+```
+
+**Resultado: PASS**
+
+### Secuencia global validada
+
+Las dos condiciones observadas permiten establecer la siguiente secuencia:
+
+```text
+TPS fuera de rango
+        ↓
+CONFIRMED
+        ↓
+hasDegraded = true
+        ↓
+DEGRADED
+
+
+TPS recuperado
+        ↓
+INACTIVE
+        ↓
+hasDegraded = false
+        ↓
+OPERATIONAL
+```
+
+Durante ambas observaciones:
+
+```text
+g_hasCriticalActive = false
+```
+
+Por lo tanto, el cambio a `DEGRADED` fue coherente con la severidad configurada
+para la regla RANGE del TPS y no con una falla crítica.
+
+Los estados intermedios de la máquina de estados de fallas, como `RECOVERING`,
+no fueron observados directamente mediante GDB durante esta prueba. La
+documentación registra únicamente los estados comprobados experimentalmente.
+
+### Resultado
+
+La integración completa:
+
+```text
+Entrada analógica física
+        ↓
+ADC STM32
+        ↓
+platform::readAdc()
+        ↓
+Conversión a voltaje
+        ↓
+SignalSample
+        ↓
+SignalStore
+        ↓
+FaultManager
+        ↓
+FaultSummary
+        ↓
+EcuStateInputs
+        ↓
+Control
+        ↓
+EcuState
+```
+
+fue validada satisfactoriamente sobre el STM32F103C8T6.
+
+Se comprobó experimentalmente que una condición física fuera de rango en el
+TPS puede llevar la ECU a `EcuState::DEGRADED` y que, después de recuperar la
+señal y completar el tiempo de recuperación, la ECU retorna a
+`EcuState::OPERATIONAL`.
+
+**Resultado general: PASS**
+
+### Alcance de esta validación
+
+Esta prueba valida una señal física real, TPS, a través de la cadena completa
+de adquisición, diagnóstico y control de `myECU`.
+
+Las demás señales fueron simuladas con valores nominales y timestamps
+actualizados para aislar el TPS. Por lo tanto, esta prueba no demuestra todavía
+la adquisición física simultánea de todos los sensores configurados.
+
+La aplicación `control_test.cpp`, sus variables globales de observación y el
+acceso directo al índice `12` constituyen infraestructura de validación y no
+deben interpretarse como interfaces definitivas de producción.

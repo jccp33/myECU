@@ -33,7 +33,7 @@
 - [x] Reducir frame estático de `main()` de ~17.5 KiB a ~2.3 KiB.
 - [x] Ejecutar ciclo periódico de 100 ms.
 - [x] Verificar temporalmente SysTick y ciclo con analizador lógico.
-- [ ] Integrar primera señal física.
+- [x] Integrar primera señal física: TPS analógico mediante PA0/ADC1, validado hasta `Control` y `EcuState`.
 - [ ] Definir adquisición independiente de CAN/ADC/SENT.
 - [ ] Agregar watchdog.
 - [ ] Medir WCET del ciclo real.
