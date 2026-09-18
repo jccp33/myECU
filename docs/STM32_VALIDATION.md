@@ -659,3 +659,188 @@ la adquisición física simultánea de todos los sensores configurados.
 La aplicación `control_test.cpp`, sus variables globales de observación y el
 acceso directo al índice `12` constituyen infraestructura de validación y no
 deben interpretarse como interfaces definitivas de producción.
+
+## Physical ECU State Indication with External LEDs
+
+### Objective
+
+Validate that the ECU state calculated by the portable `myECU` core can be
+observed directly on physical hardware using external LEDs.
+
+This validation extends the previous TPS ADC integration by connecting the
+resulting `EcuState` to physical GPIO outputs on the STM32F103C8T6 Blue Pill.
+
+### Hardware
+
+- STM32F103C8T6 Blue Pill
+- ST-LINK V2
+- B103 10 kOhm potentiometer
+- Breadboard
+- External LEDs
+- 220 Ohm current-limiting resistors
+- Jumper wires
+
+### LED mapping
+
+| ECU state | LED | STM32 pin |
+|---|---|---|
+| `INIT` / `SELF_TEST` | Blue | PB8 |
+| `OPERATIONAL` | Green | PB5 |
+| `DEGRADED` | Yellow | PB6 |
+| `SAFE_STATE` | Red | PB7 |
+| `SHUTDOWN_REQ` / `SHUTDOWN` | All off | - |
+
+The LED driver belongs to the STM32 platform layer. The portable core does not
+depend on GPIOs, LEDs, STM32 registers, or any other platform-specific
+implementation.
+
+The application layer maps the portable `EcuState` to the corresponding
+platform LED.
+
+### Validated signal path
+
+The complete physical path validated during this test was:
+
+    Potentiometer
+        |
+        v
+    STM32 ADC (PA0)
+        |
+        v
+    TPS SignalSample
+        |
+        v
+    SignalStore
+        |
+        v
+    FaultManager
+        |
+        v
+    FaultSummary
+        |
+        v
+    Control
+        |
+        v
+    EcuState
+        |
+        v
+    External state LED
+
+The potentiometer therefore acts as a real physical TPS input rather than a
+simulated signal.
+
+### Observed behavior
+
+With the TPS voltage inside its accepted operating range, the ECU reaches:
+
+    EcuState::OPERATIONAL
+
+and the green LED is activated.
+
+When the potentiometer is moved into the configured TPS fault region and the
+fault satisfies the diagnostic timing requirements, the ECU reaches:
+
+    EcuState::DEGRADED
+
+and the yellow LED is activated.
+
+This demonstrates that a physical analog input can propagate through the
+complete diagnostic and control architecture and produce an externally
+observable ECU state.
+
+### Breadboard intermittency incident
+
+During validation, the original breadboard assembly developed intermittent
+behavior. Symptoms included unstable behavior when the breadboard was moved
+and ADC behavior that appeared to be inconsistent with potentiometer
+position.
+
+Software, ADC configuration, and ECU state handling were investigated during
+diagnosis.
+
+The physical circuit was subsequently rebuilt using:
+
+- a different breadboard,
+- a different B103 10 kOhm potentiometer,
+- and a revised jumper-wire arrangement.
+
+Before reconnecting the MCU, the replacement potentiometer was validated with
+a multimeter:
+
+    P0 <-> P2: approximately 10.36-10.37 kOhm
+    P0 <-> P1: approximately 0-10.36 kOhm across the knob travel
+
+After rebuilding the circuit, the expected ECU state transitions were observed
+again.
+
+The exact defective component or contact in the original assembly was not
+isolated. Therefore, the result should be interpreted as evidence of a
+physical interconnection problem in the previous assembly, rather than proof
+that a specific breadboard, potentiometer, or jumper was defective.
+
+### Diagnostic lesson
+
+When future ADC measurements appear stuck, unstable, or inconsistent with a
+physical sensor input, the hardware signal path should be verified before
+changing firmware.
+
+Recommended checks include:
+
+1. Sensor resistance or output.
+2. Supply voltage and ground.
+3. Sensor output voltage.
+4. Breadboard continuity.
+5. Jumper continuity and mechanical contact.
+6. ADC input voltage at the MCU pin.
+7. ADC register/sample value.
+8. ECU diagnostic state.
+
+This separates physical signal-integrity problems from software defects.
+
+### Architectural significance
+
+The external LEDs are now more than a GPIO validation mechanism. They provide
+a simple physical indication of the global ECU state.
+
+As additional physical signals are integrated, each signal can contribute to
+the existing diagnostic architecture:
+
+    Physical signals
+          |
+          v
+      SignalStore
+          |
+          v
+     FaultManager
+          |
+          v
+     FaultSummary
+          |
+          v
+       Control
+          |
+          v
+       EcuState
+          |
+          v
+     State LEDs
+
+This does not require the portable core to know anything about the LEDs or the
+STM32 platform.
+
+The same `EcuState` can later be exposed through other platform-specific
+interfaces such as UART, CAN, diagnostic messages, or telemetry without
+changing the core state-machine architecture.
+
+### Validation status
+
+**Status: PHYSICALLY VALIDATED**
+
+Validated on STM32F103C8T6 Blue Pill with a real potentiometer used as the TPS
+analog input.
+
+Observed physical state indication:
+
+- `OPERATIONAL` -> green LED
+- `DEGRADED` -> yellow LED

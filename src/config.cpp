@@ -16,8 +16,8 @@ SystemConfig getSystemConfig() {
     config.sensorCount = CONFIGURED_SENSOR_COUNT;
     config.maxInvalidSignals = 4;
     config.sensors = {{
-        {100, SensorId::SHUT_REQ, SignalId(1U, 1U, 100U, 0U), "Solicitud de Apagado",  "S_R",  0.0f,  0.0f,   1.0f,    false, 500, true,  1.0f},
-        {101, SensorId::BRAKE,    SignalId(1U, 1U, 101U, 0U), "Solicitud de Freno",    "BRK",  0.0f,  0.0f,   1.0f,    false, 500, false, 1.0f},
+        {100, SensorId::SHUT_REQ, SignalId(1U, 1U, 100U, 0U), "Solicitud de Apagado",  "-",    0.0f,  0.0f,   1.0f,    false, 500, true,  1.0f},
+        {101, SensorId::BRAKE,    SignalId(1U, 1U, 101U, 0U), "Solicitud de Freno",    "-",    0.0f,  0.0f,   1.0f,    false, 500, false, 1.0f},
         {102, SensorId::SPEED,    SignalId(1U, 1U, 102U, 0U), "Velocidad",             "km/h", 0.0f,  0.0f,   220.0f,  false, 500, false, 0.0f},
         {103, SensorId::RPM,      SignalId(1U, 1U, 103U, 0U), "Revoluciones X minuto", "RPM",  0.0f,  0.0f,   7000.0f, true,  500, false, 0.0f},
         {104, SensorId::TEMP,     SignalId(1U, 1U, 104U, 0U), "Temperatura",           "C",    25.0f, -20.0f, 130.0f,  true,  500, false, 0.0f},

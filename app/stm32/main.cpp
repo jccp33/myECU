@@ -13,7 +13,7 @@
 int main()
 {
     // init objects
-    platform::initLed();
+    platform::initLeds();
     platform::initTime();
     platform::initAdc();
     const SystemConfig systemConfig = getSystemConfig();
@@ -50,9 +50,27 @@ int main()
                 diagnosticStatus
             );
             control.processInputs(inputs);
-            // Instrumentación temporal:
-            // cambia PC13 una vez por cada ciclo de 100 ms.
-            platform::toggleLed();
+            // use leds to show ECU state
+            const EcuState currState = control.getCurrentState();
+            platform::turnAllLedsOff();
+            switch(currState){
+                case EcuState::INIT:
+                case EcuState::SELF_TEST:
+                    platform::turnLedOn(platform::Led::BLUE);
+                    break;
+                case EcuState::OPERATIONAL:
+                    platform::turnLedOn(platform::Led::GREEN);
+                    break;
+                case EcuState::DEGRADED:
+                    platform::turnLedOn(platform::Led::YELLOW);
+                    break;
+                case EcuState::SAFE_STATE:
+                    platform::turnLedOn(platform::Led::RED);
+                    break;
+                case EcuState::SHUTDOWN_REQ:
+                case EcuState::SHUTDOWN:
+                    break;
+            }
         }
     }
     // finish program

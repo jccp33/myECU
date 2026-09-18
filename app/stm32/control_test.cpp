@@ -7,6 +7,7 @@
 #include "fault_manager.hpp"
 #include "signal_store.hpp"
 #include "signal_acquisition.hpp"
+#include "led.hpp"
 #include <cstdint>
 
 volatile bool g_hasDegraded = false;
@@ -38,6 +39,7 @@ namespace {
 
 int main(){
     // init objects
+    platform::initLeds();
     platform::initTime();
     platform::initAdc();
     const SystemConfig systemConfig = getSystemConfig();
@@ -83,8 +85,28 @@ int main(){
                 diagnosticStatus
             );
             control.processInputs(inputs);
-
             g_ecuState = static_cast<std::uint8_t>(control.getCurrentState());
+            // use leds to show ECU state
+            const EcuState currState = control.getCurrentState();
+            platform::turnAllLedsOff();
+            switch(currState){
+                case EcuState::INIT:
+                case EcuState::SELF_TEST:
+                    platform::turnLedOn(platform::Led::BLUE);
+                    break;
+                case EcuState::OPERATIONAL:
+                    platform::turnLedOn(platform::Led::GREEN);
+                    break;
+                case EcuState::DEGRADED:
+                    platform::turnLedOn(platform::Led::YELLOW);
+                    break;
+                case EcuState::SAFE_STATE:
+                    platform::turnLedOn(platform::Led::RED);
+                    break;
+                case EcuState::SHUTDOWN_REQ:
+                case EcuState::SHUTDOWN:
+                    break;
+            }
         }
     }
     // finish
