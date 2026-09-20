@@ -14,6 +14,11 @@ volatile bool g_hasDegraded = false;
 volatile bool g_hasCriticalActive = false;
 volatile std::uint8_t g_ecuState = 0U;
 volatile std::uint8_t g_tpsFaultState = 0U;
+volatile float g_tpsVoltage = 0.0F;
+volatile float g_temperatureSensorVoltage = 0.0F;
+volatile float g_temperatureNtcResistance = 0.0F;
+volatile std::uint8_t g_ntcSignalValidity = 0U;
+volatile float g_temperatureEstimatedC = 0.0F;
 
 namespace {
     void insertNominalSignals(SignalStore &signalStore, TimestampMs now){
@@ -23,9 +28,9 @@ namespace {
             {SignalId(1U, 1U, 101U, 0U),   0.0F,  now, SignalValidity::VALID}, // BRAKE
             {SignalId(1U, 1U, 102U, 0U),  50.0F,  now, SignalValidity::VALID}, // SPEED
             {SignalId(1U, 1U, 103U, 0U), 1500.0F, now, SignalValidity::VALID}, // RPM
-            {SignalId(1U, 1U, 104U, 0U),  90.0F,  now, SignalValidity::VALID}, // TEMP
+            //{SignalId(1U, 1U, 104U, 0U),  90.0F,  now, SignalValidity::VALID}, // TEMP
             {SignalId(1U, 1U, 105U, 0U),  12.5F,  now, SignalValidity::VALID}, // VOLTAGE
-            // 106 TPS NO se simula: provendrá físicamente del ADC.
+            //{SignalId(1U, 1U, 106U, 0U),  1.0F,  now, SignalValidity::VALID} // TPS
             {SignalId(1U, 1U, 107U, 0U),   2.5F,  now, SignalValidity::VALID}, // MAP
             {SignalId(1U, 1U, 108U, 0U),  20.0F,  now, SignalValidity::VALID}, // MAF
             {SignalId(1U, 1U, 109U, 0U),   0.5F,  now, SignalValidity::VALID}  // O2
@@ -58,8 +63,31 @@ int main(){
             previousTime = now;
             // mantener senales nominales sin adquisicion fisica
             insertNominalSignals(signalStore, static_cast<TimestampMs>(now));
-            // TPS: 106 proviene del ADC fisico
+            // TEMP y TPS provienen del circuito fisico
             app::acquireSignals(signalStore, static_cast<TimestampMs>(now));
+
+
+            // variables de diagnostico
+            const SignalId estimTempSignalId(1U, 1U, 104U, 0U);
+            const SignalSample *estimTempSignalSample = signalStore.find(estimTempSignalId);
+            if (estimTempSignalSample != nullptr)
+            {
+                g_temperatureEstimatedC = estimTempSignalSample->value;
+            }
+            const SignalId tpsSignalId(1U, 1U, 106U, 0U);
+            const SignalSample *tpsSample = signalStore.find(tpsSignalId);
+            if (tpsSample != nullptr)
+            {
+                g_tpsVoltage = tpsSample->value;
+            }
+            const SignalId tempSignalId(1U, 1U, 110U, 0U);
+            const SignalSample *tempSample = signalStore.find(tempSignalId);
+            if(tempSample != nullptr){
+                g_temperatureNtcResistance = tempSample->value;
+                g_ntcSignalValidity = static_cast<std::uint8_t>(tempSample->validity);
+            }
+            
+            // if error
             if(configurationError == FaultConfigurationError::NONE){
                 const FaultManagerResult faultResult = faultManager.processCycle(
                     signalStore,

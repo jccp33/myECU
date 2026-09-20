@@ -54,9 +54,7 @@ const EvaluationRule EVALUATION_RULES[] = {
     createTimeoutRule(103U, FaultSeverity::CRITICAL),
     createRangeRule(104U, -20.0F, 130.0F, FaultSeverity::CRITICAL),
     createTimeoutRule(104U, FaultSeverity::CRITICAL),
-    createRangeRule(
-        105U, 8.0F, 16.0F, FaultSeverity::CRITICAL, FaultLatching::LATCHED
-    ),
+    createRangeRule(105U, 8.0F, 16.0F, FaultSeverity::CRITICAL, FaultLatching::LATCHED),
     createTimeoutRule(105U, FaultSeverity::CRITICAL),
     createRangeRule(106U, 0.5F, 4.8F, FaultSeverity::DEGRADED),
     createTimeoutRule(106U, FaultSeverity::DEGRADED),

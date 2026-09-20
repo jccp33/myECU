@@ -6,10 +6,7 @@
 
 namespace app
 {
-    void acquireSignals(
-        SignalStore &signalStore,
-        TimestampMs now
-    );
+    void acquireSignals(SignalStore &signalStore, TimestampMs now);
 }
 
 #endif

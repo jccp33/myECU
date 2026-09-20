@@ -17,8 +17,9 @@ namespace platform
     void initAdc() {
         // Enable GPIOA clock
         *RCC_APB2ENR |= (1U << 2);
-        // Configure PA0 as analog input
-        *GPIOA_CRL &= ~(0xFU << 0);
+        // Configure PA0 and PA1 as analog inputs
+        *GPIOA_CRL &= ~(0xFU << 0);  // PA0 -> ADC1_IN0
+        *GPIOA_CRL &= ~(0xFU << 4);  // PA1 -> ADC1_IN1
         // ADC clock = PCLK2 / 6
         *RCC_CFGR &= ~(0x3U << 14);
         *RCC_CFGR |=  (0x2U << 14);
@@ -27,9 +28,11 @@ namespace platform
         // Channel 0 sample time = 55.5 cycles
         *ADC1_SMPR2 &= ~(0x7U << 0);
         *ADC1_SMPR2 |=  (0x5U << 0);
+        // Channel 1 sample time = 55.5 cycles
+        *ADC1_SMPR2 &= ~(0x7U << 3);
+        *ADC1_SMPR2 |=  (0x5U << 3);
         // First regular conversion = channel 0
         *ADC1_SQR3 &= ~(0x1FU << 0);
-        
         // Select software trigger for regular conversion
         *ADC1_CR2 &= ~(0x7U << 17);
         *ADC1_CR2 |=  (0x7U << 17);
@@ -38,31 +41,24 @@ namespace platform
         // Power on ADC1
         *ADC1_CR2 |= (1U << 0);
         // Allow ADC to stabilize after power-on
-        for (volatile uint32_t i = 0; i < 1000U; ++i)
-        {
-        }
-        
+        for (volatile uint32_t i = 0; i < 1000U; ++i){}
         // Reset calibration
         *ADC1_CR2 |= (1U << 3);
-        while ((*ADC1_CR2 & (1U << 3)) != 0U)
-        {
-        }
+        while ((*ADC1_CR2 & (1U << 3)) != 0U){}
         // Start calibration
         *ADC1_CR2 |= (1U << 2);
-        while ((*ADC1_CR2 & (1U << 2)) != 0U)
-        {
-        }
+        while ((*ADC1_CR2 & (1U << 2)) != 0U){}
     }
 
-    uint16_t readAdc()
+    uint16_t readAdc(uint8_t channel)
     {
+        // Select channel for the first regular conversion
+        *ADC1_SQR3 &= ~(0x1FU << 0);
+        *ADC1_SQR3 |= (static_cast<uint32_t>(channel) & 0x1FU);
         // star regular conversion by software
         *ADC1_CR2 |= (1U << 22);
         // Wait until conversion completes
-        while ((*ADC1_SR & (1U << 1)) == 0U)
-        {
-        }
+        while ((*ADC1_SR & (1U << 1)) == 0U){}
         return static_cast<uint16_t>(*ADC1_DR & 0x0FFFU);
     }
-
 }

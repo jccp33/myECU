@@ -21,7 +21,7 @@ SystemConfig getSystemConfig() {
         {102, SensorId::SPEED,    SignalId(1U, 1U, 102U, 0U), "Velocidad",             "km/h", 0.0f,  0.0f,   220.0f,  false, 500, false, 0.0f},
         {103, SensorId::RPM,      SignalId(1U, 1U, 103U, 0U), "Revoluciones X minuto", "RPM",  0.0f,  0.0f,   7000.0f, true,  500, false, 0.0f},
         {104, SensorId::TEMP,     SignalId(1U, 1U, 104U, 0U), "Temperatura",           "C",    25.0f, -20.0f, 130.0f,  true,  500, false, 0.0f},
-        {105, SensorId::VOLTAGE,  SignalId(1U, 1U, 105U, 0U), "Voltaje",               "V",    12.5f,  8.0f,  16.0f,   true,  500, false, 0.0f},
+        {105, SensorId::VOLTAGE,  SignalId(1U, 1U, 105U, 0U), "Voltaje",               "V",    12.5f, 8.0f,   16.0f,   true,  500, false, 0.0f},
         {106, SensorId::TPS,      SignalId(1U, 1U, 106U, 0U), "Posicion de Mariposa",  "V",    0.0f,  0.5f,   4.8f,    false, 500, false, 0.0f},
         {107, SensorId::MAP,      SignalId(1U, 1U, 107U, 0U), "Presion Absoluta",      "V",    0.0f,  0.5f,   4.7f,    false, 500, false, 0.0f},
         {108, SensorId::MAF,      SignalId(1U, 1U, 108U, 0U), "Flujo de masa de aire", "g/s",  0.0f,  2.0f,   120.0f,  false, 500, false, 0.0f},
