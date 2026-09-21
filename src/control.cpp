@@ -57,7 +57,7 @@ FaultManagerResult Control::processMessages(
             shutdownRequested = true;
         }
         if (
-            message.getSensorId() == SensorId::BRAKE && 
+            message.getIsShutdownPermission() && 
             message.getRawValue() == message.getActiveValue()
         ) {
             shutdownPermitted = true;

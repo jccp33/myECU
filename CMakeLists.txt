@@ -213,90 +213,62 @@ endif()
 #   - dependencia accidental de plataforma;
 #   - problemas de portabilidad del Core.
 #
-#
-# fault_types.hpp se mantiene temporalmente como header de
-# compatibilidad y será evaluado durante la siguiente fase
-# de la purga.
-#
 # signal_sample.hpp y signal_store.hpp se mantienen mientras
 # se evalúa la alineación de STM32.
 # ============================================================
 
 set(
     ECU_CORE_PUBLIC_HEADERS
-
     data_types.hpp
-
     message.hpp
     config.hpp
     mssgmanager.hpp
     getaway.hpp
     control.hpp
-
-    fault_types.hpp
     evaluation_rule.hpp
     fault_state_machine.hpp
     fault_manager.hpp
     ecu_state_machine.hpp
-
     signal_sample.hpp
     signal_store.hpp
-
     fault_configuration.hpp
     diagnostic_status.hpp
 )
 
-
 foreach(header IN LISTS ECU_CORE_PUBLIC_HEADERS)
-
     string(
         MAKE_C_IDENTIFIER
         "${header}"
         header_id
     )
-
-
     set(
         header_check_source
         "${CMAKE_CURRENT_BINARY_DIR}/${header_id}_check.cpp"
     )
-
-
     file(
         GENERATE
         OUTPUT "${header_check_source}"
         CONTENT "#include \"${header}\"\n"
     )
-
-
     add_library(
         "ecu_${header_id}_check"
         OBJECT
         "${header_check_source}"
     )
-
-
     target_compile_features(
         "ecu_${header_id}_check"
         PRIVATE
             cxx_std_11
     )
-
-
     target_include_directories(
         "ecu_${header_id}_check"
         PRIVATE
             ${CMAKE_CURRENT_SOURCE_DIR}/include
     )
-
-
     enable_project_warnings(
         "ecu_${header_id}_check"
     )
-
-
     enable_ecu_core_profile(
         "ecu_${header_id}_check"
     )
-
 endforeach()

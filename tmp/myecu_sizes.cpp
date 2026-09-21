@@ -3,7 +3,7 @@
 #include "signal_store.hpp"
 #include "control.hpp"
 #include "signal_sample.hpp"
-#include "fault_types.hpp"
+#include "data_types.hpp"
 
 extern "C" {
 

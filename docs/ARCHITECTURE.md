@@ -1,116 +1,381 @@
 # Arquitectura
 
-## Límites del sistema
+## Propósito
+
+`myECU` separa la lógica portable de la ECU de los mecanismos específicos de
+plataforma.
+
+El CORE no debe conocer Linux, Windows, STM32, AVR, GPIO, ADC, UART ni ninguna
+API específica del sistema operativo o microcontrolador.
+
+La plataforma y la aplicación proporcionan los datos de entrada. El CORE
+procesa esos datos y determina el estado lógico de la ECU.
+
+---
+
+## Fuente autoritativa de configuración
+
+`SystemConfig` es la fuente autoritativa de configuración de las señales.
+
+Contiene, entre otros datos:
+
+- identidad de sensor;
+- identidad de señal;
+- límites válidos;
+- timeout;
+- severidad;
+- tiempos de confirmación y recuperación;
+- política de latching;
+- configuración asociada a señales de control.
+
+Las estructuras utilizadas posteriormente por el CORE deben derivarse de esta
+configuración.
+
+No debe existir una segunda definición manual de la misma política.
 
 ```mermaid
-flowchart TB
-    subgraph Host[Plataforma / host]
-        Terminal
-        Clock
-        Random[Generador aleatorio]
-        SensorModel[Modelo de sensores]
-    end
-    subgraph Adapter[Aplicación y compatibilidad]
-        Message
-        MessageManager
-        Gateway
-        SystemConfig
-    end
-    subgraph Portable[CORE portable]
-        SignalSample
-        SignalStore
-        Rules[EvaluationRuleSet]
-        Evaluator[FaultConditionEvaluator]
-        FaultFSM[FaultStateMachine]
-        FaultManager
-        Diagnostics[DiagnosticStatus]
-        Control
-        EcuFSM[EcuStateMachine]
-    end
-    Terminal --> MessageManager
-    Clock --> MessageManager
-    Random --> SensorModel --> MessageManager
-    SystemConfig --> MessageManager --> Message --> Gateway
-    Message --> SignalSample --> SignalStore
+flowchart TD
+
+    Config[SystemConfig]
+
+    Config --> Messages[Message / MessageManager]
+    Config --> Builder[FaultConfiguration]
+    Builder --> Rules[EvaluationRuleSet]
+
+    Messages --> Gateway
     Rules --> FaultManager
-    SignalStore --> FaultManager
-    FaultManager --> Evaluator --> FaultFSM
-    FaultFSM --> FaultManager
-    FaultManager --> Diagnostics
-    FaultManager --> Control
-    Diagnostics --> Control --> EcuFSM
 ```
 
-Las flechas representan dependencias de datos, no ownership.
+---
+
+## Pipeline de procesamiento
+
+El pipeline lógico actual es:
+
+```mermaid
+flowchart TD
+
+    Platform[Plataforma / adquisición]
+    Manager[MessageManager]
+    Message
+    Gateway
+    Status[SignalStatus]
+    Control
+    FaultManager
+    FaultFSM[FaultStateMachine]
+    Summary[FaultSummary]
+    EcuFSM[EcuStateMachine]
+    State[EcuState]
+
+    Platform --> Manager
+    Manager --> Message
+    Message --> Gateway
+    Gateway --> Status
+    Status --> Control
+    Control --> FaultManager
+    FaultManager --> FaultFSM
+    FaultFSM --> FaultManager
+    FaultManager --> Summary
+    Summary --> Control
+    Control --> EcuFSM
+    EcuFSM --> State
+```
+
+Las flechas representan flujo lógico y dependencias de datos, no ownership.
+
+---
 
 ## Responsabilidades
 
 | Componente | Responsabilidad | Conoce plataforma |
 |---|---|:---:|
+| `SystemConfig` | Fuente autoritativa de configuración de señales | No |
 | `SignalId` | Identidad estable de una señal | No |
-| `SignalSample` | Valor, timestamp y validez | No |
-| `SignalStore` | Última muestra por identidad | No |
-| `EvaluationRule` | Política configurable de evaluación | No |
-| `FaultConditionEvaluator` | Convertir muestra y regla en condición | No |
-| `FaultStateMachine` | Filtrado temporal del fallo | No |
-| `FaultManager` | Ejecutar reglas y construir resumen | No |
-| `DiagnosticStatus` | Normalizar errores internos | No |
-| `Control` | Mantener el estado global | No |
-| `EcuStateMachine` | Decidir transición global | No |
-| `LinuxPlatform` | Teclado no bloqueante | Sí |
-| `utils` | Reloj, aleatoriedad y consola | Sí |
-| `sensor_simulation` | Dinámica artificial de señales | Simulador |
+| `Message` | Representar el estado runtime de una señal necesario para su procesamiento | No |
+| `MessageManager` | Inicializar y actualizar mensajes | No |
+| `Gateway` | Evaluar rango y timeout y establecer `SignalStatus` | No |
+| `EvaluationRule` | Representar política temporal diagnóstica derivada de configuración | No |
+| `FaultConfiguration` | Construir y validar reglas derivadas de `SystemConfig` | No |
+| `FaultStateMachine` | Gestionar confirmación, recuperación y latching de un fallo | No |
+| `FaultManager` | Gestionar fallos por `SignalId` y producir `FaultSummary` | No |
+| `DiagnosticStatus` | Representar errores internos relevantes para el control | No |
+| `Control` | Coordinar `SignalStatus`, diagnóstico, fallos y entradas de la FSM global | No |
+| `EcuStateMachine` | Determinar el estado global de la ECU | No |
+| Plataforma / drivers | Adquirir señales y proporcionar servicios específicos de hardware/SO | Sí |
+| Simulador | Generar señales artificiales para ejecutar el CORE en host | Sí |
 
-## Dependencias permitidas
+---
 
-El CORE usa tipos de ancho fijo, `std::size_t` y `std::array`. No consulta el
-reloj, no duerme, no imprime, no lee teclado y no usa APIs POSIX. Los timestamps
-entran como `TimestampMs`.
+## Separación de responsabilidades diagnósticas
+
+### Gateway
+
+`Gateway` es responsable de determinar el estado inmediato de una señal.
+
+Evalúa:
+
+- rango;
+- timeout.
+
+Produce:
+
+```text
+SignalStatus
+```
+
+El resto del CORE no debe repetir estas comparaciones.
+
+### Control
+
+`Control` interpreta el `SignalStatus` ya determinado por `Gateway`.
+
+No debe volver a comparar:
+
+- `rawValue` contra `minValue`;
+- `rawValue` contra `maxValue`;
+- timestamps contra `timeoutMs`.
+
+Transforma el estado de las señales y las condiciones del sistema en entradas
+para la gestión de fallos y para `EcuStateMachine`.
+
+### FaultStateMachine
+
+`FaultStateMachine` no evalúa valores físicos.
+
+Gestiona exclusivamente comportamiento temporal del fallo:
+
+- confirmación;
+- recuperación;
+- latching.
+
+### FaultManager
+
+`FaultManager` administra el estado diagnóstico por `SignalId`.
+
+Recibe una condición de fallo ya determinada y utiliza la política temporal
+correspondiente.
+
+También construye `FaultSummary`.
+
+### EcuStateMachine
+
+`EcuStateMachine` determina las transiciones globales de la ECU a partir de
+entradas abstractas.
+
+No debe conocer:
+
+- sensores concretos;
+- valores ADC;
+- GPIO;
+- registros;
+- drivers;
+- plataformas.
+
+---
+
+## Configuración diagnóstica derivada
+
+Las reglas diagnósticas no constituyen una segunda fuente de configuración.
+
+`EvaluationRule` se deriva de `SystemConfig`.
 
 ```mermaid
 flowchart LR
-    LinuxClock[std::chrono en aplicación] -->|TimestampMs| Core
-    FutureTimer[Timer de MCU futuro] -.->|TimestampMs| Core
+
+    Config[SystemConfig]
+    Builder[FaultConfiguration]
+    Rule[EvaluationRule]
+    Manager[FaultManager]
+
+    Config --> Builder
+    Builder --> Rule
+    Rule --> Manager
 ```
 
-`std::array` no es una dependencia de Linux: es un contenedor C++ de tamaño
-fijo. La independencia absoluta se confirma al compilar con el toolchain real.
+Una modificación de política debe realizarse en la configuración autoritativa y
+propagarse al resto del sistema mediante construcción o derivación.
+
+---
+
+## Dependencias permitidas
+
+El CORE puede utilizar abstracciones C++ portables compatibles con los
+toolchains objetivo.
+
+Actualmente utiliza tipos de ancho fijo, `std::size_t` y estructuras de tamaño
+fijo como `std::array`.
+
+El CORE:
+
+- no consulta directamente el reloj del sistema;
+- no duerme;
+- no imprime;
+- no lee teclado;
+- no utiliza APIs POSIX;
+- no accede directamente a GPIO;
+- no accede directamente a ADC;
+- no configura interrupciones;
+- no depende de HAL/CMSIS;
+- no depende de registros AVR.
+
+Los timestamps entran al CORE como:
+
+```cpp
+TimestampMs
+```
+
+Conceptualmente:
+
+```mermaid
+flowchart LR
+
+    LinuxClock[Reloj Linux]
+    McuTimer[Timer MCU]
+    Timestamp[TimestampMs]
+    Core[CORE]
+
+    LinuxClock --> Timestamp
+    McuTimer --> Timestamp
+    Timestamp --> Core
+```
+
+La utilización de `std::array` no constituye por sí misma una dependencia de
+Linux. Su compatibilidad debe comprobarse mediante los toolchains oficialmente
+soportados.
+
+---
 
 ## Ownership y memoria
 
-```mermaid
-flowchart TD
-    Main[main / objeto aplicación]
-    Main --> Config[SystemConfig]
-    Main --> Messages[array Message, 128]
-    Main --> Store[SignalStore]
-    Main --> Manager[FaultManager]
-    Main --> ControlObj[Control]
-    Rules[Reglas con vida estática] --> Manager
-```
+La aplicación posee los objetos principales necesarios para ejecutar el CORE.
 
-- La aplicación posee los objetos principales.
-- `FaultManager` mantiene un puntero no propietario a reglas de vida estática.
-- Los arreglos reservan su capacidad completa al construirse.
-- No hay crecimiento dinámico ni invalidación de direcciones por reallocación.
+`FaultManager` mantiene una referencia no propietaria al conjunto de reglas que
+se le proporciona. La vida útil del almacenamiento de dichas reglas debe ser
+superior a la del uso realizado por `FaultManager`.
+
+El CORE utiliza almacenamiento de capacidad fija.
+
+No debe introducir:
+
+- crecimiento dinámico de contenedores;
+- asignación dinámica innecesaria;
+- ownership implícito;
+- dependencias de memoria específicas de plataforma.
+
+---
 
 ## Extensión con nuevas señales
 
-Para agregar una señal:
+Para agregar una nueva señal al pipeline actual:
 
-1. asignar un `SignalId` único;
-2. agregar metadatos a `SystemConfig`;
-3. agregar una o más `EvaluationRule`;
-4. validar que no se excedan las capacidades;
-5. agregar pruebas de configuración y comportamiento.
+1. asignar las identidades necesarias;
+2. agregar la configuración correspondiente a `SystemConfig`;
+3. permitir que la configuración diagnóstica derivada genere su
+   `EvaluationRule`;
+4. verificar las capacidades estáticas;
+5. agregar o actualizar las pruebas correspondientes.
 
-No debe modificarse `Control` ni `EcuStateMachine` por cada sensor nuevo.
+No debe agregarse manualmente una segunda definición de:
+
+- rango;
+- timeout;
+- severidad;
+- confirmación;
+- recuperación;
+- latching.
+
+Agregar un sensor ordinario tampoco debe requerir modificar
+`EcuStateMachine`.
+
+---
+
+## SignalSample y SignalStore
+
+`SignalSample` y `SignalStore` permanecen bajo revisión arquitectónica.
+
+Antes de considerarlos parte definitiva del pipeline se debe determinar si
+representan una responsabilidad independiente de adquisición o si duplican
+estado ya mantenido mediante `Message` y `MessageManager`.
+
+Hasta completar esa revisión:
+
+- no deben utilizarse como una segunda ruta diagnóstica;
+- no deben evaluar rango o timeout;
+- no deben mantener una segunda política de fallos;
+- no deben considerarse una fuente autoritativa de configuración.
+
+La decisión definitiva debe preservar un único pipeline diagnóstico para todas
+las plataformas.
+
+---
+
+## Independencia de plataforma
+
+La arquitectura objetivo es:
+
+```mermaid
+flowchart TD
+
+    Linux[Linux / simulador]
+    STM32[STM32]
+    AVR[AVR]
+    Adapter[Adquisición / adaptación]
+    Core[CORE portable]
+
+    Linux --> Adapter
+    STM32 --> Adapter
+    AVR --> Adapter
+    Adapter --> Core
+```
+
+Linux, STM32 y AVR pueden implementar mecanismos diferentes de adquisición,
+temporización y salida.
+
+El CORE debe permanecer idéntico.
+
+No debe existir:
+
+```text
+CORE Linux
+CORE STM32
+CORE AVR
+```
+
+Debe existir:
+
+```text
+un CORE
++
+adaptadores/plataformas diferentes
+```
+
+---
 
 ## Decisiones de seguridad
 
-- Configuración inválida y errores de evaluación producen diagnóstico no
-  disponible y conducen a una respuesta fail-safe.
-- El reloj regresivo se reporta como `CLOCK_ERROR`.
-- Las muestras antiguas no reemplazan una muestra más nueva.
-- Los límites de capacidad se comprueban antes de escribir.
-- Los fallos latched requieren un ciclo de ignición explícito.
+- La configuración inválida debe ser detectada antes de utilizarla.
+- Los errores internos relevantes deben propagarse mediante
+  `DiagnosticStatus`.
+- La regresión del reloj debe detectarse y tratarse explícitamente.
+- Los límites de capacidad deben comprobarse antes de escribir.
+- Los fallos configurados como latched no deben recuperarse mediante el
+  mecanismo normal de recuperación.
+- Una señal debe mantener un único estado diagnóstico autoritativo.
+- El diagnóstico no debe depender de dos evaluadores paralelos del mismo dato.
+
+---
+
+## Invariantes arquitectónicos
+
+La arquitectura debe mantener permanentemente los siguientes invariantes:
+
+1. `SystemConfig` es la fuente autoritativa de configuración.
+2. `Gateway` es el único responsable de evaluar rango y timeout.
+3. `Control` consume `SignalStatus`; no vuelve a validar la señal.
+4. `FaultStateMachine` gestiona comportamiento temporal, no valores físicos.
+5. `FaultManager` administra fallos por identidad de señal.
+6. `EcuStateMachine` no conoce sensores ni plataformas.
+7. El CORE no conoce mecanismos específicos de hardware o sistema operativo.
+8. Consola y plataformas embebidas deben utilizar el mismo pipeline del CORE.
+9. No debe existir una segunda ruta diagnóstica.
+10. Una nueva señal no debe requerir duplicar manualmente su política.

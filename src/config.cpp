@@ -11,11 +11,8 @@ namespace {
 SystemConfig getSystemConfig() {
     SystemConfig config = {};
     config.sensorCount = CONFIGURED_SENSOR_COUNT;
-    config.maxInvalidSignals = 4;
     config.sensors = {{
         {
-            100,
-            SensorId::SHUT_REQ,
             SignalId(1U, 1U, 100U, 0U),
             "Solicitud de Apagado",
             "-",
@@ -28,11 +25,10 @@ SystemConfig getSystemConfig() {
             500U,
             FaultLatching::RECOVERABLE,
             true,
+            false,
             1.0f
         },
         {
-            101,
-            SensorId::BRAKE,
             SignalId(1U, 1U, 101U, 0U),
             "Solicitud de Freno",
             "-",
@@ -45,11 +41,10 @@ SystemConfig getSystemConfig() {
             500U,
             FaultLatching::RECOVERABLE,
             false,
+            true,
             1.0f
         },
         {
-            102,
-            SensorId::SPEED,
             SignalId(1U, 1U, 102U, 0U),
             "Velocidad",
             "km/h",
@@ -62,11 +57,10 @@ SystemConfig getSystemConfig() {
             500U,
             FaultLatching::RECOVERABLE,
             false,
+            false,
             0.0f
         },
         {
-            103,
-            SensorId::RPM,
             SignalId(1U, 1U, 103U, 0U),
             "Revoluciones X minuto",
             "RPM",
@@ -79,11 +73,10 @@ SystemConfig getSystemConfig() {
             500U,
             FaultLatching::RECOVERABLE,
             false,
+            false,
             0.0f
         },
         {
-            104,
-            SensorId::TEMP,
             SignalId(1U, 1U, 104U, 0U),
             "Temperatura",
             "C",
@@ -96,11 +89,10 @@ SystemConfig getSystemConfig() {
             500U,
             FaultLatching::RECOVERABLE,
             false,
+            false,
             0.0f
         },
         {
-            105,
-            SensorId::VOLTAGE,
             SignalId(1U, 1U, 105U, 0U),
             "Voltaje",
             "V",
@@ -113,11 +105,10 @@ SystemConfig getSystemConfig() {
             500U,
             FaultLatching::LATCHED,
             false,
+            false,
             0.0f
         },
         {
-            106,
-            SensorId::TPS,
             SignalId(1U, 1U, 106U, 0U),
             "Posicion de Mariposa",
             "V",
@@ -130,11 +121,10 @@ SystemConfig getSystemConfig() {
             500U,
             FaultLatching::RECOVERABLE,
             false,
+            false,
             0.0f
         },
         {
-            107,
-            SensorId::MAP,
             SignalId(1U, 1U, 107U, 0U),
             "Presion Absoluta",
             "V",
@@ -147,11 +137,10 @@ SystemConfig getSystemConfig() {
             500U,
             FaultLatching::RECOVERABLE,
             false,
+            false,
             0.0f
         },
         {
-            108,
-            SensorId::MAF,
             SignalId(1U, 1U, 108U, 0U),
             "Flujo de masa de aire",
             "g/s",
@@ -164,11 +153,10 @@ SystemConfig getSystemConfig() {
             500U,
             FaultLatching::RECOVERABLE,
             false,
+            false,
             0.0f
         },
         {
-            109,
-            SensorId::O2,
             SignalId(1U, 1U, 109U, 0U),
             "Sensor de Oxigeno",
             "V",
@@ -181,6 +169,7 @@ SystemConfig getSystemConfig() {
             500U,
             FaultLatching::RECOVERABLE,
             false,
+            false,
             0.0f
         }
     }};
@@ -188,5 +177,5 @@ SystemConfig getSystemConfig() {
 }
 
 bool isSystemConfigValid(const SystemConfig& config) {
-    return config.sensorCount <= config.sensors.size() && config.maxInvalidSignals <= config.sensorCount;
+    return config.sensorCount <= config.sensors.size();
 }

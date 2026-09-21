@@ -25,7 +25,6 @@ arm-none-eabi-g++ \
   src/diagnostic_status.cpp \
   src/ecu_state_machine.cpp \
   src/evaluation_rule.cpp \
-  src/fault_condition_evaluator.cpp \
   src/fault_configuration.cpp \
   src/fault_manager.cpp \
   src/fault_state_machine.cpp \

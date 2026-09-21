@@ -5,15 +5,13 @@ Message MessageManager::InitMessage(
     TimestampMs timestamp
 ) const {
     return Message(
-        values.id,
-        values.sId,
         values.signalId,
         values.value,
-        values.severity,
         values.minValue,
         values.maxValue,
         values.timeoutMs,
         values.isShutdownRequest,
+        values.isShutdownPermission,
         values.activeValue,
         timestamp
     );

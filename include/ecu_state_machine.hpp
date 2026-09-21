@@ -3,7 +3,6 @@
 
 #include "data_types.hpp"
 #include "diagnostic_status.hpp"
-#include "fault_types.hpp"
 #include <cstdint>
 
 enum class SelfTestResult : std::uint8_t {

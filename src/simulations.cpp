@@ -72,32 +72,36 @@ const char* getSignalStatusText(SignalStatus status) {
 }
 
 // PRESENTATION
-const char* getSignalStatusColor(const Message& message) {
+const char* getSignalStatusColor(const Message& message, FaultSeverity severity) {
     switch (message.getSignalStatus()) {
         case SignalStatus::VALID:
             return TXT_GREEN;
         case SignalStatus::OUT_OF_RANGE:
         case SignalStatus::TIMEOUT:
-			switch (message.getSeverity()) {
-				case FaultSeverity::CRITICAL: return TXT_RED;
-				case FaultSeverity::DEGRADED: return TXT_YELLOW;
-				case FaultSeverity::WARNING: return TXT_YELLOW;
-				case FaultSeverity::NONE: return TXT_RESET;
-			}
-			return TXT_RESET;
+            switch (severity) {
+                case FaultSeverity::CRITICAL:
+                    return TXT_RED;
+                case FaultSeverity::DEGRADED:
+                    return TXT_YELLOW;
+                case FaultSeverity::WARNING:
+                    return TXT_YELLOW;
+                case FaultSeverity::NONE:
+                    return TXT_RESET;
+            }
+            return TXT_RESET;
         case SignalStatus::UNDEFINED:
             return TXT_YELLOW;
     }
-    return TXT_YELLOW;
+    return TXT_RESET;
 }
 
 // PRESENTATION
 const InitValues* findSignalMetadata(
-    const SystemConfig& config,
-    uint32_t messageId
+    const SystemConfig &config,
+    const SignalId &signalId
 ) {
     for (std::size_t index = 0; index < config.sensorCount; ++index) {
-        if (config.sensors[index].id == messageId) {
+        if (config.sensors[index].signalId == signalId) {
             return &config.sensors[index];
         }
     }
@@ -113,7 +117,7 @@ void printMessages(
         const Message& message = sensorsArray[sensor];
         const InitValues* metadata = findSignalMetadata(
             config,
-            message.getMessageId()
+            message.getSignalId()
         );
         const char* name = metadata != 0 ? metadata->name : "Desconocida";
         const char* unit = metadata != 0 ? metadata->unit : "";
@@ -123,7 +127,10 @@ void printMessages(
             << std::setw(10) << std::fixed << std::setprecision(2)
             << message.getRawValue()
             << std::setw(6) << unit
-            << getSignalStatusColor(message)
+			<< getSignalStatusColor(
+				message,
+				metadata != 0 ? metadata->severity : FaultSeverity::NONE
+			)
             << getSignalStatusText(message.getSignalStatus())
             << TXT_RESET
             << std::endl;
@@ -213,7 +220,7 @@ void userSimulation(
 				float value;
 				const InitValues* metadata = findSignalMetadata(
 					config,
-					sensorsArray[mssg].getMessageId()
+					sensorsArray[mssg].getSignalId()
 				);
 				const char* name = metadata != 0 ? metadata->name : "Desconocida";
 				const char* unit = metadata != 0 ? metadata->unit : "";
@@ -300,12 +307,12 @@ void randomSimulation(
 		}
 		// update values
 		for (std::size_t sensor = 0; sensor < config.sensorCount; sensor++) {
-			if(
-				sensorsArray[sensor].getSensorId()!=SensorId::BRAKE &&
-				sensorsArray[sensor].getSensorId()!=SensorId::SHUT_REQ
-			){
+			const SensorId sensorId = getSensorId(
+				config.sensors[sensor].signalId
+			);
+			if(sensorId != SensorId::BRAKE && sensorId != SensorId::SHUT_REQ){
 				const float val = simulateSensorValue(
-					sensorsArray[sensor].getSensorId(),
+					sensorId,
 					sensorsArray[sensor].getRawValue(),
 					randomFloat(-1.0F, 1.0F)
 				);
@@ -315,14 +322,14 @@ void randomSimulation(
 					sensorsArray[sensor]
 				);
 			}
-			if(sensorsArray[sensor].getSensorId()==SensorId::BRAKE){
+			if(sensorId == SensorId::BRAKE){
 				mssgManager.UpdateMessage(
 					get_timestamp_ms(),
 					isBraked ? 1.0f : 0.0f,
 					sensorsArray[sensor]
 				);
 			}
-			if(sensorsArray[sensor].getSensorId()==SensorId::SHUT_REQ){
+			if(sensorId == SensorId::SHUT_REQ){
 				mssgManager.UpdateMessage(
 					get_timestamp_ms(),
 					shutdownRequested ? 1.0f : 0.0f,

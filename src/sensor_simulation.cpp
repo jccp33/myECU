@@ -28,6 +28,22 @@ float evolveValue(
 
 }  // namespace
 
+SensorId getSensorId(const SignalId& signalId) {
+    switch (signalId.id) {
+        case 100U: return SensorId::SHUT_REQ;
+        case 101U: return SensorId::BRAKE;
+        case 102U: return SensorId::SPEED;
+        case 103U: return SensorId::RPM;
+        case 104U: return SensorId::TEMP;
+        case 105U: return SensorId::VOLTAGE;
+        case 106U: return SensorId::TPS;
+        case 107U: return SensorId::MAP;
+        case 108U: return SensorId::MAF;
+        case 109U: return SensorId::O2;
+        default:   return SensorId::UNDEFINED;
+    }
+}
+
 float simulateSensorValue(
     SensorId sensorId,
     float currentValue,

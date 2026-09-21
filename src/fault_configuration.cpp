@@ -17,13 +17,13 @@ namespace {
         }
         return false;
     }
-    bool containsSignal(const SystemConfig& systemConfig, const SignalId& signalId) {
+    const InitValues* findSignalConfig(const SystemConfig& systemConfig, const SignalId& signalId) {
         for (std::size_t i = 0U; i < systemConfig.sensorCount; ++i) {
             if (systemConfig.sensors[i].signalId == signalId) {
-                return true;
+                return &systemConfig.sensors[i];
             }
         }
-        return false;
+        return nullptr;
     }
     bool containsDuplicateRules(const EvaluationRuleSet& ruleSet) {
         for (std::size_t first = 0U; first < ruleSet.count; ++first) {
@@ -99,7 +99,16 @@ FaultConfigurationError validateEvaluationRuleSet(
         if (!rule.isValid()) {
             return FaultConfigurationError::INVALID_RULE;
         }
-        if (!containsSignal(systemConfig, rule.getSignalId())) {
+        const InitValues* sensorConfig = findSignalConfig(systemConfig, rule.getSignalId());
+        if (sensorConfig == nullptr) {
+            return FaultConfigurationError::INVALID_RULE;
+        }
+        if (
+            rule.getConfirmationTimeMs() != sensorConfig->confirmationTimeMs ||
+            rule.getRecoveryTimeMs() != sensorConfig->recoveryTimeMs ||
+            rule.getSeverity() != sensorConfig->severity ||
+            rule.getLatching() != sensorConfig->latching
+        ) {
             return FaultConfigurationError::INVALID_RULE;
         }
     }
