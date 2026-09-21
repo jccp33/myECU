@@ -1,4 +1,4 @@
-#include "../include/linux_platform.hpp"
+#include "linux_platform.hpp"
 #include <unistd.h>
 #include <termios.h>
 #include <fcntl.h>

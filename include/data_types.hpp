@@ -9,7 +9,9 @@
 #define MYECU_MAX_SENSOR_COUNT 128U
 #endif
 
+using TimestampMs = std::uint64_t;
 constexpr std::size_t MAX_SENSOR_COUNT = static_cast<std::size_t>(MYECU_MAX_SENSOR_COUNT);
+
 
 // enums 
 enum class SensorId : uint8_t {
@@ -92,17 +94,53 @@ constexpr bool operator!=(const SignalId& left, const SignalId& right) {
     return !(left == right);
 }
 
+enum class SignalError : std::uint8_t {
+    NONE = 0,
+    TIMEOUT,
+    OUT_OF_RANGE,
+    RATE_OF_CHANGE,
+    SENSOR_FAILURE,
+    COMMUNICATION_FAILURE,
+    INVALID_DATA
+};
+
+enum class FaultSeverity : std::uint8_t {
+    NONE = 0,
+    WARNING,
+    DEGRADED,
+    CRITICAL
+};
+
+enum class FaultType : std::uint8_t {
+    SENSOR = 0,
+    ACTUATOR,
+    COMMUNICATION,
+    INTERNAL,
+    CONFIGURATION
+};
+
+enum class FaultState : std::uint8_t {
+    INACTIVE = 0,
+    PENDING,
+    CONFIRMED,
+    RECOVERING,
+    LATCHED
+};
+
 struct InitValues {
-    uint32_t id;      // message id
-    SensorId sId;     // sensor id
+    uint32_t id;
+    SensorId sId;
     SignalId signalId;
     const char* name;
     const char* unit;
-    float value;      // value
-    float minValue; 
+    float value;
+    float minValue;
     float maxValue;
-    bool isCritic;
-    uint64_t timeoutMs;
+    FaultSeverity severity;
+    TimestampMs timeoutMs;
+    TimestampMs confirmationTimeMs;
+    TimestampMs recoveryTimeMs;
+    FaultLatching latching;
     bool isShutdownRequest;
     float activeValue;
 };
@@ -113,7 +151,38 @@ struct SystemConfig {
     std::size_t maxInvalidSignals;
 };
 
-// types
-using TimestampMs = std::uint64_t;
+struct FaultSummary {
+    bool hasCriticalActive;
+    bool hasCriticalLatched;
+    bool hasDegraded;
+    std::uint16_t activeFaultCount;
+
+    constexpr FaultSummary(
+        bool criticalActive = false,
+        bool criticalLatched = false,
+        bool degraded = false,
+        std::uint16_t faultCount = 0U
+    ) :
+        hasCriticalActive(criticalActive),
+        hasCriticalLatched(criticalLatched),
+        hasDegraded(degraded),
+        activeFaultCount(faultCount) {}
+
+    constexpr bool hasActiveFaults() const {
+        return activeFaultCount != 0U;
+    }
+};
+
+struct FaultRecord {
+    FaultState state;
+    TimestampMs stateEntryTimeMs;
+
+    constexpr FaultRecord(
+        FaultState initialState = FaultState::INACTIVE,
+        TimestampMs entryTimeMs = 0U
+    ) :
+        state(initialState),
+        stateEntryTimeMs(entryTimeMs) {}
+};
 
 #endif

@@ -1,75 +1,84 @@
-#include "../include/message.hpp"
+#include "message.hpp"
 
 // constructors
-Message::Message(){
+Message::Message() {
     messageId = 0;
     sensorId = SensorId::UNDEFINED;
+    signalId = SignalId();
     rawValue = 0.0f;
     minValue = 0.0f;
     maxValue = 0.0f;
     status = SignalStatus::UNDEFINED;
-    isCritic = false;
-    timeoutMs = 0;
+    severity = FaultSeverity::NONE;
+    timeoutMs = 0U;
     isShutdownRequest = false;
     activeValue = 0.0f;
-    timestampMs = 0;
+    timestampMs = 0U;
 }
 
 Message::Message(
-    uint32_t id, 
-    SensorId sId, 
-    float val, 
-    bool critic,
-    float min, 
-    float max, 
-    TimestampMs timeout, 
+    uint32_t id,
+    SensorId sId,
+    const SignalId &sigId,
+    float val,
+    FaultSeverity _severity,
+    float min,
+    float max,
+    TimestampMs timeout,
     bool shutdownRequest,
     float shutdownValue,
     TimestampMs timestamp
-){
+) {
     messageId = id;
     sensorId = sId;
+    signalId = sigId;
     rawValue = val;
     minValue = min;
     maxValue = max;
     status = SignalStatus::VALID;
-    isCritic = critic;
+    severity = _severity;
     timeoutMs = timeout;
     isShutdownRequest = shutdownRequest;
     activeValue = shutdownValue;
     timestampMs = timestamp;
 }
 
+
 // setters
-void Message::setSignalStatus(SignalStatus _status){
+
+void Message::setSignalStatus(SignalStatus _status) {
     status = _status;
 }
 
-void Message::setMessageId(uint32_t id){
+void Message::setMessageId(uint32_t id) {
     messageId = id;
 }
 
-void Message::setSensorId(SensorId id){
+void Message::setSensorId(SensorId id) {
     sensorId = id;
 }
 
-void Message::setIsCritic(bool critic){
-    isCritic = critic;
+void Message::setSignalId(const SignalId &id) {
+    signalId = id;
 }
 
-void Message::setRawValue(float value){
+void Message::setSeverity(FaultSeverity _severity) {
+    severity = _severity;
+}
+
+void Message::setRawValue(float value) {
     rawValue = value;
 }
 
-void Message::setMinValue(float min){
+void Message::setMinValue(float min) {
     minValue = min;
 }
 
-void Message::setMaxValue(float max){
+void Message::setMaxValue(float max) {
     maxValue = max;
 }
 
-void Message::setTimesStamp(TimestampMs timestamp){
+void Message::setTimesStamp(TimestampMs timestamp) {
     timestampMs = timestamp;
 }
 
@@ -80,6 +89,10 @@ uint32_t Message::getMessageId() const {
 
 SensorId Message::getSensorId() const {
     return sensorId;
+}
+
+const SignalId &Message::getSignalId() const {
+    return signalId;
 }
 
 float Message::getRawValue() const {
@@ -98,8 +111,8 @@ SignalStatus Message::getSignalStatus() const {
     return status;
 }
 
-bool Message::getIsCritic() const {
-    return isCritic;
+FaultSeverity Message::getSeverity() const {
+    return severity;
 }
 
 TimestampMs Message::getTimeoutMs() const {

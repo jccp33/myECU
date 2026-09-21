@@ -1,4 +1,4 @@
-#include "../include/sensor_simulation.hpp"
+#include "sensor_simulation.hpp"
 
 namespace {
 

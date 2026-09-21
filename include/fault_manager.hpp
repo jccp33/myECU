@@ -3,55 +3,37 @@
 
 #include "data_types.hpp"
 #include "evaluation_rule.hpp"
-#include "fault_types.hpp"
-#include "signal_sample.hpp"
-#include "signal_store.hpp"
-#include "fault_configuration.hpp"
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <limits>
 
 static_assert(
-    MAX_EVALUATION_RULE_COUNT <= std::numeric_limits<std::uint16_t>::max(),
-    "FaultSummary::activeFaultCount cannot represent every configured rule"
+    MAX_SENSOR_COUNT <= std::numeric_limits<std::uint16_t>::max(),
+    "FaultSummary::activeFaultCount cannot represent every configured signal"
 );
 
 enum class FaultManagerResult : std::uint8_t {
     OK = 0,
     INVALID_CONFIGURATION,
-    INVALID_RULE_INDEX,
-    INVALID_SIGNAL_SAMPLE,
-    NO_MATCHING_RULE,
-    RULE_EVALUATION_ERROR,
+    SIGNAL_NOT_CONFIGURED,
     CLOCK_ERROR
 };
 
-class FaultManager{
+class FaultManager {
     private:
-        const EvaluationRule *rules;
+        const EvaluationRule* rules;
         std::size_t ruleCount;
-        std::array<FaultRecord, MAX_EVALUATION_RULE_COUNT> records;
+        std::array<FaultRecord, MAX_SENSOR_COUNT> records;
         bool configurationValid;
-        TimestampMs monitoringStartMs;
-        bool monitoringStarted;
     public:
-        FaultManager(const EvaluationRule *confRules, std::size_t confRuleCount);
-        FaultManagerResult processRule(
-            std::size_t ruleIndex,
-            float value,
-            TimestampMs lastUpdateMs,
-            TimestampMs nowMs
-        ); 
-        FaultManagerResult processSignal(
-            const SignalSample &sample,
+        FaultManager(const EvaluationRule* confRules, std::size_t confRuleCount);
+        FaultManagerResult processCondition(
+            const SignalId &signalId,
+            bool faultConditionActive,
             TimestampMs nowMs
         );
-        FaultManagerResult processCycle(
-            const SignalStore& store,
-            TimestampMs nowMs
-        );
-        const FaultRecord *getRecord(std::size_t ruleIndex) const;
+        const FaultRecord *getRecord(const SignalId &signalId) const;
         std::size_t getRuleCount() const;
         bool isConfigValid() const;
         void reset();

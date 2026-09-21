@@ -1,4 +1,4 @@
-#include "../include/fault_state_machine.hpp"
+#include "fault_state_machine.hpp"
 
 namespace {
 

@@ -1,4 +1,4 @@
-#include "../include/mssgmanager.hpp"
+#include "mssgmanager.hpp"
 
 Message MessageManager::InitMessage(
     const InitValues &values, 
@@ -7,8 +7,9 @@ Message MessageManager::InitMessage(
     return Message(
         values.id,
         values.sId,
+        values.signalId,
         values.value,
-        values.isCritic,
+        values.severity,
         values.minValue,
         values.maxValue,
         values.timeoutMs,

@@ -1,4 +1,4 @@
-#include "../include/ecu_state_machine.hpp"
+#include "ecu_state_machine.hpp"
 
 EcuState updateEcuState(EcuState currentState, const EcuStateInputs &inputs){
     const bool criticalFault = inputs.faults.hasCriticalActive || inputs.faults.hasCriticalLatched;

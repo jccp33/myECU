@@ -1,7 +1,7 @@
-#include "../include/simulations.hpp"
-#include "../include/utils.hpp"
-#include "../include/linux_platform.hpp"
-#include "../include/sensor_simulation.hpp"
+#include "simulations.hpp"
+#include "utils.hpp"
+#include "linux_platform.hpp"
+#include "sensor_simulation.hpp"
 #include <iostream>
 #include <thread>
 #include <iomanip>
@@ -39,57 +39,18 @@ void validateMessages(
 
 // SIMULATION
 void processMessages(
-	const SystemConfig& config,
-	std::array<Message, MAX_SENSOR_COUNT>& sensorsArray,
-	std::size_t sensorCount,
-	SignalStore& signalStore,
-	FaultManager& faultManager,
-	Control& control
+    const std::array<Message, MAX_SENSOR_COUNT> &sensorsArray,
+    std::size_t sensorCount,
+    FaultManager &faultManager,
+    Control& control
 ) {
-	DiagnosticStatus diagnosticStatus = DiagnosticStatus::AVAILABLE;
-	bool shutdownRequested = false;
-	bool shutdownPermitted = false;
-	const TimestampMs nowMs = get_timestamp_ms();
-	for (std::size_t sensor = 0; sensor < sensorCount; sensor++) {
-		const Message& message = sensorsArray[sensor];
-		const InitValues& metadata = config.sensors[sensor];
-		const SignalStoreResult storeResult = signalStore.upsert(
-			SignalSample(
-				metadata.signalId,
-				message.getRawValue(),
-				message.getTimestamp(),
-				SignalValidity::VALID
-			)
-		);
-		if (storeResult == SignalStoreResult::CAPACITY_EXCEEDED) {
-			diagnosticStatus = DiagnosticStatus::EVALUATION_ERROR;
-		} else if (storeResult == SignalStoreResult::STALE_SAMPLE) {
-			diagnosticStatus = DiagnosticStatus::CLOCK_ERROR;
-		}
-		if (metadata.isShutdownRequest
-				&& message.getRawValue() == metadata.activeValue) {
-			shutdownRequested = true;
-		}
-		if (metadata.sId == SensorId::BRAKE
-				&& message.getRawValue() == metadata.activeValue) {
-			shutdownPermitted = true;
-		}
-	}
-	const FaultManagerResult cycleResult = faultManager.processCycle(
-		signalStore,
-		nowMs
-	);
-	if (diagnosticStatus == DiagnosticStatus::AVAILABLE) {
-		diagnosticStatus = toDiagnosticStatus(cycleResult);
-	}
-	control.processInputs(EcuStateInputs(
-		faultManager.getSummary(),
-		true,
-		SelfTestResult::PASSED,
-		shutdownRequested,
-		shutdownPermitted,
-		diagnosticStatus
-	));
+    const TimestampMs nowMs = get_timestamp_ms();
+    control.processMessages(
+        sensorsArray,
+        sensorCount,
+        faultManager,
+        nowMs
+    );
 }
 
 // PRESENTATION
@@ -117,7 +78,13 @@ const char* getSignalStatusColor(const Message& message) {
             return TXT_GREEN;
         case SignalStatus::OUT_OF_RANGE:
         case SignalStatus::TIMEOUT:
-            return message.getIsCritic() ? TXT_RED : TXT_YELLOW;
+			switch (message.getSeverity()) {
+				case FaultSeverity::CRITICAL: return TXT_RED;
+				case FaultSeverity::DEGRADED: return TXT_YELLOW;
+				case FaultSeverity::WARNING: return TXT_YELLOW;
+				case FaultSeverity::NONE: return TXT_RESET;
+			}
+			return TXT_RESET;
         case SignalStatus::UNDEFINED:
             return TXT_YELLOW;
     }
@@ -207,11 +174,10 @@ void printControlState(const Control &control) {
 
 // SIMULATION
 void userSimulation(
-	const SystemConfig& config,
-	std::array<Message, MAX_SENSOR_COUNT>& sensorsArray,
+	const SystemConfig &config,
+	std::array<Message, MAX_SENSOR_COUNT> &sensorsArray,
 	MessageManager &mssgManager, 
 	Gateway &gateway, 
-	SignalStore& signalStore,
 	FaultManager& faultManager,
 	Control &control
 ) {
@@ -272,8 +238,10 @@ void userSimulation(
 			// validate & process
 			validateMessages(sensorsArray, config.sensorCount, gateway);
 			processMessages(
-				config, sensorsArray, config.sensorCount,
-				signalStore, faultManager, control
+				sensorsArray,
+				config.sensorCount,
+				faultManager,
+				control
 			);
 		} else if (option == 2) {
 			// option 2 : show state
@@ -296,11 +264,10 @@ void userSimulation(
 
 // SIMULATION
 void randomSimulation(
-	const SystemConfig& config,
-	std::array<Message, MAX_SENSOR_COUNT>& sensorsArray,
+	const SystemConfig &config,
+	std::array<Message, MAX_SENSOR_COUNT> &sensorsArray,
 	MessageManager &mssgManager, 
 	Gateway &gateway, 
-	SignalStore& signalStore,
 	FaultManager& faultManager,
 	Control &control
 ) {
@@ -366,8 +333,10 @@ void randomSimulation(
 		// validate sensors
 		validateMessages(sensorsArray, config.sensorCount, gateway);
 		processMessages(
-			config, sensorsArray, config.sensorCount,
-			signalStore, faultManager, control
+			sensorsArray,
+			config.sensorCount,
+			faultManager,
+			control
 		);
 		// if shutdown request
 		if (control.getCurrentState() == EcuState::SHUTDOWN) {

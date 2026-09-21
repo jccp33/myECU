@@ -1,4 +1,4 @@
-#include "../include/getaway.hpp"
+#include "getaway.hpp"
 
 bool Gateway::validateValue(float value, float min, float max) const {
     return (value>=min && value<=max);
