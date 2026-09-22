@@ -8,13 +8,14 @@ namespace app {
         constexpr std::uint16_t ADC_MAX_VALID_RAW = 4000U;
         constexpr float ADC_REFERENCE_VOLTAGE = 3.3F;
         constexpr float ADC_MAX_VALUE = 4095.0F;
-        const SignalId TPS_SIGNAL_ID(1U, 1U, 106U, 0U);
-        const SignalId TEMPERATURE_SIGNAL_ID(1U, 1U, 104U, 0U);
         constexpr float NTC_FIXED_RESISTOR_OHMS = 9970.0F;
         constexpr float NTC_NOMINAL_RESISTANCE_OHMS = 10000.0F;
         constexpr float NTC_NOMINAL_TEMPERATURE_K = 298.15F;
         constexpr float NTC_BETA_K = 3950.0F;
         constexpr float LN2 = 0.69314718056F;
+        const SignalId TPS_SIGNAL_ID(1U, 1U, 106U, 0U);
+        const SignalId TEMPERATURE_SIGNAL_ID(1U, 1U, 104U, 0U);
+        const SignalId MAP_SIGNAL_ID(1U, 1U, 107U, 0U);
         
         Message *findMessage(
             std::array<Message, MAX_SENSOR_COUNT> &messages,
@@ -91,6 +92,19 @@ namespace app {
             const float resistance = voltageToNtcResistance(voltage);
             messageManager.UpdateMessage(now, ntcResistanceToTemperature(resistance), *message);
         }
+
+        void acquireMap(
+            std::array<Message, MAX_SENSOR_COUNT>& messages,
+            std::size_t messageCount,
+            const MessageManager& messageManager,
+            TimestampMs now
+        ) {
+            Message* const message = findMessage(messages, messageCount, MAP_SIGNAL_ID);
+            if (message == nullptr) return;
+            const std::uint16_t adcRaw = platform::readAdc(2U);
+            const float voltage = adcToVoltage(adcRaw);
+            messageManager.UpdateMessage(now, voltage, *message);
+        }
     } // namespace
 
     void acquireSignals(
@@ -101,6 +115,7 @@ namespace app {
     ) {
         acquireTps(messages, messageCount, messageManager, now);
         acquireTemperature(messages, messageCount, messageManager, now);
+        acquireMap(messages, messageCount, messageManager, now);
     }
 
 } // namespace app

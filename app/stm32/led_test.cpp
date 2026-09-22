@@ -30,7 +30,7 @@ namespace
 
 int main()
 {
-    const short led_option = 3;
+    const short led_option = 0;
     // Enable GPIOB peripheral clock.
     reg(RCC_APB2ENR) |= (1UL << 3);
 

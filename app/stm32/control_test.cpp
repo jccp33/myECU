@@ -18,10 +18,14 @@ volatile std::uint8_t g_tpsFaultState = 0U;
 volatile float g_tpsVoltage = 0.0F;
 volatile std::uint8_t g_temperatureSignalStatus = 0U;
 volatile float g_temperatureEstimatedC = 0.0F;
+volatile std::uint16_t g_mapAdcRaw = 0U;
+volatile float g_mapVoltage = 0.0F;
+volatile std::uint8_t g_mapSignalStatus = 0U;
 
 namespace {
     const SignalId TPS_SIGNAL_ID(1U, 1U, 106U, 0U);
     const SignalId TEMPERATURE_SIGNAL_ID(1U, 1U, 104U, 0U);
+    const SignalId MAP_SIGNAL_ID(1U, 1U, 107U, 0U);
     
     Message* findMessage(
         std::array<Message, MAX_SENSOR_COUNT>& messages,
@@ -35,14 +39,20 @@ namespace {
     }
     
     void refreshNominalSignals(
-        const SystemConfig& config,
+        const SystemConfig &config,
         std::array<Message, MAX_SENSOR_COUNT>& messages,
-        const MessageManager& messageManager,
+        const MessageManager &messageManager,
         TimestampMs now
     ) {
         for (std::size_t index = 0U; index < config.sensorCount; ++index) {
-            const SignalId& id = messages[index].getSignalId();
-            if (id == TPS_SIGNAL_ID || id == TEMPERATURE_SIGNAL_ID) continue;
+            const SignalId &id = messages[index].getSignalId();
+            if (
+                id == TPS_SIGNAL_ID || 
+                id == TEMPERATURE_SIGNAL_ID || 
+                id == MAP_SIGNAL_ID
+            ){
+                continue;
+            }
             const float nominal = config.sensors[index].minValue
                 + ((config.sensors[index].maxValue - config.sensors[index].minValue) / 2.0F);
             messageManager.UpdateMessage(now, nominal, messages[index]);
@@ -74,28 +84,25 @@ namespace {
 } // namespace
 
 int main() {
-    // init
+    // init platform
     platform::initLeds();
     platform::initTime();
     platform::initAdc();
-    // objects
+    // variables and objects
     const SystemConfig systemConfig = getSystemConfig();
     std::array<EvaluationRule, MAX_SENSOR_COUNT> ruleStorage;
     EvaluationRuleSet ruleSet;
-    const FaultConfigurationError configurationError = buildEvaluationRuleSet(
-        systemConfig,
-        ruleStorage,
-        ruleSet
-    );
+    const FaultConfigurationError configurationError = buildEvaluationRuleSet(systemConfig, ruleStorage, ruleSet);
+    FaultManager faultManager(ruleSet.rules, ruleSet.count);
+    const Gateway gateway;
+    Control control;
+    std::uint32_t previousTime = 0U;
+    // init messages
     std::array<Message, MAX_SENSOR_COUNT> messages;
     const MessageManager messageManager;
     for (std::size_t index = 0U; index < systemConfig.sensorCount; ++index) {
         messages[index] = messageManager.InitMessage(systemConfig.sensors[index], 0U);
     }
-    FaultManager faultManager(ruleSet.rules, ruleSet.count);
-    const Gateway gateway;
-    Control control;
-    std::uint32_t previousTime = 0U;
     // main loop
     while (true) {
         const std::uint32_t now = platform::millis();
@@ -104,13 +111,20 @@ int main() {
         const TimestampMs cycleTime = static_cast<TimestampMs>(now);
 
         if (configurationError == FaultConfigurationError::NONE) {
+            // -------------------- software-injected signals -------------------- //
             refreshNominalSignals(systemConfig, messages, messageManager, cycleTime);
+            // -------------------- software-injected signals -------------------- //
+
+            // -------------------- real physical signals -------------------- //
             app::acquireSignals(
                 messages,
                 systemConfig.sensorCount,
                 messageManager,
                 cycleTime
             );
+            // -------------------- real physical signals -------------------- //
+
+            // -------------------- gateway and control -------------------- //
             for (std::size_t index = 0U; index < systemConfig.sensorCount; ++index) {
                 gateway.validateMessage(messages[index], cycleTime);
             }
@@ -120,6 +134,7 @@ int main() {
                 faultManager,
                 cycleTime
             );
+            // -------------------- gateway and control -------------------- //
         }
 
         const Message* const tps = findMessage(messages, systemConfig.sensorCount, TPS_SIGNAL_ID);
@@ -132,6 +147,15 @@ int main() {
         if (temperature != nullptr) {
             g_temperatureEstimatedC = temperature->getRawValue();
             g_temperatureSignalStatus = static_cast<std::uint8_t>(temperature->getSignalStatus());
+        }
+        const Message* const map = findMessage(
+            messages,
+            systemConfig.sensorCount,
+            MAP_SIGNAL_ID
+        );
+        if (map != nullptr) {
+            g_mapVoltage = map->getRawValue();
+            g_mapSignalStatus = static_cast<std::uint8_t>(map->getSignalStatus());
         }
 
         const FaultSummary faultSummary = faultManager.getSummary();

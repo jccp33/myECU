@@ -1,0 +1,15 @@
+- circuit debug by console:
+    console 1: st-util
+    console 2: gdb-multiarch build-stm32/control_test.elf
+        (gdb) target extended-remote :4242
+        (gdb) continue
+        (gdb) CTRL+C
+        (gdb) print g_mapAdcRaw
+        (gdb) print (unsigned short)g_mapAdcRaw
+
+==================== MAP ====================
+extremo:    <-              ->
+multim:     0V              3.26V
+(gnd):      $1 = 1417       $2 = 1430
+=============================================
+

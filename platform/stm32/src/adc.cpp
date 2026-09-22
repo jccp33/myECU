@@ -17,9 +17,10 @@ namespace platform
     void initAdc() {
         // Enable GPIOA clock
         *RCC_APB2ENR |= (1U << 2);
-        // Configure PA0 and PA1 as analog inputs
+        // Configure PA0, PA1 and PA2 as analog inputs
         *GPIOA_CRL &= ~(0xFU << 0);  // PA0 -> ADC1_IN0
         *GPIOA_CRL &= ~(0xFU << 4);  // PA1 -> ADC1_IN1
+        *GPIOA_CRL &= ~(0xFU << 8);  // PA2 -> ADC1_IN2
         // ADC clock = PCLK2 / 6
         *RCC_CFGR &= ~(0x3U << 14);
         *RCC_CFGR |=  (0x2U << 14);

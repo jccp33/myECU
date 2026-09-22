@@ -34,6 +34,9 @@
 - [x] Ejecutar ciclo periódico de 100 ms.
 - [x] Verificar temporalmente SysTick y ciclo con analizador lógico.
 - [x] Integrar primera señal física: TPS analógico mediante PA0/ADC1, validado hasta `Control` y `EcuState`.
+- [x] Integrar temperatura NTC mediante PA1/ADC1 con conversión por modelo Beta.
+- [x] Integrar adquisición MAP mediante PA2/ADC1 en el firmware STM32.
+- [ ] Validar físicamente MAP y documentar su propagación hasta `EcuState`.
 - [ ] Definir adquisición independiente de CAN/ADC/SENT.
 - [ ] Agregar watchdog.
 - [ ] Medir WCET del ciclo real.
@@ -64,7 +67,7 @@ El mismo `ecu_core` ya:
 
 Todavía falta para cerrar completamente el criterio:
 
-- recibir muestras desde adaptadores de hardware reales;
+- completar la validación física y eléctrica de las tres entradas ADC;
 - reproducir formalmente el conjunto de pruebas host mediante estrategia
   PIL/HIL o equivalente;
 - medir WCET y stack máximo en runtime.

@@ -5,8 +5,8 @@
 Este documento deja reproducible la implementación física y de software
 actualmente utilizada por **myECU** sobre una **STM32F103C8T6 Blue
 Pill**. Describe el pipeline vigente basado en `Message`, el hardware ya
-validado y las dos entradas físicas actualmente integradas: TPS y
-temperatura NTC.
+validado y las tres entradas físicas actualmente integradas: TPS,
+temperatura NTC y MAP.
 
 ## 1. Plataforma
 
@@ -91,15 +91,16 @@ El driver está en `platform/stm32/src/adc.cpp` y utiliza ADC1.
 -   Referencia usada en conversiones: 3.3 V.
 -   ADC clock: PCLK2/6.
 -   Inicio por software y calibración durante inicialización.
--   Tiempo de muestreo: 55.5 ciclos en canales 0 y 1.
+-   Tiempo de muestreo configurado explícitamente: 55.5 ciclos en canales 0 y 1.
 -   Lectura bloqueante esperando EOC.
 
   Señal             Pin   ADC      Canal
   ----------------- ----- ------ -------
   TPS               PA0   ADC1         0
   Temperatura NTC   PA1   ADC1         1
+  MAP               PA2   ADC1         2
 
-**No aplicar 5 V a PA0 ni PA1; el montaje actual trabaja con señales
+**No aplicar 5 V a PA0, PA1 ni PA2; el montaje actual trabaja con señales
 analógicas de hasta 3.3 V.**
 
 ## 6. TPS --- SignalId 106
@@ -200,7 +201,7 @@ Configuración:
 ``` text
 SignalId:      1.1.104.0
 Señal:         Temperatura
-Rango:         -20...130 °C
+Rango:         -20...30 °C
 Severidad:     CRITICAL
 Timeout:       500 ms
 Confirmación:  200 ms
@@ -210,6 +211,38 @@ Latching:      RECOVERABLE
 
 La cadena física de temperatura está validada y se considera terminada
 para continuar con otra señal.
+
+## 7.1. MAP --- SignalId 107
+
+MAP se adquiere como una tercera entrada analógica:
+
+``` text
+salida MAP o fuente de prueba 0...3.3 V ─── PA2 / ADC1_IN2
+GND de la fuente                         ─── GND común
+```
+
+Conversión:
+
+``` text
+V = ADCraw × 3.3 / 4095
+```
+
+Configuración:
+
+``` text
+SignalId:      1.1.107.0
+Señal:         Presión Absoluta
+Rango:         0.5...4.7 V
+Severidad:     DEGRADED
+Timeout:       500 ms
+Confirmación:  200 ms
+Recuperación:  500 ms
+Latching:      RECOVERABLE
+```
+
+El límite superior lógico no autoriza 4.7 V en PA2: la entrada física debe
+permanecer en 3.3 V o menos. Para sensores con salida superior se requiere
+acondicionamiento externo.
 
 ## 8. LEDs de estado
 
@@ -233,7 +266,7 @@ limitadora de 220 Ω. Ya se validaron físicamente `OPERATIONAL → verde` y
     101 Solicitud de freno       0--1          WARNING
     102 Velocidad                0--220 km/h   DEGRADED
     103 RPM                      0--7000 rpm   CRITICAL
-    104 Temperatura              -20--130 °C   CRITICAL
+    104 Temperatura              -20--30 °C    CRITICAL
     105 Voltaje                  8--16 V       CRITICAL
     106 TPS                      0.5--4.8 V    DEGRADED
     107 MAP / Presión absoluta   0.5--4.7 V    DEGRADED
@@ -245,15 +278,26 @@ Entradas físicas STM32 actuales:
 ``` text
 104 → Temperatura NTC → PA1 / ADC1_IN1
 106 → TPS             → PA0 / ADC1_IN0
+107 → MAP             → PA2 / ADC1_IN2
 ```
 
 ## 10. `control_test`
 
 `app/stm32/control_test.cpp` es el firmware recomendado para incorporar
 sensores uno por uno. `refreshNominalSignals()` actualiza con valores
-nominales las señales que aún no tienen hardware, excepto TPS y
-temperatura. Así una transición de ECU puede atribuirse a la entrada
+nominales las siete señales que aún no tienen hardware, excepto TPS,
+temperatura y MAP. Así una transición de ECU puede atribuirse a la entrada
 física bajo prueba y no a timeouts ajenos.
+
+El orden de cada ciclo de 100 ms es:
+
+``` text
+refrescar siete señales nominales
+→ adquirir TPS, temperatura y MAP
+→ validar rango/timeout con Gateway
+→ procesar fallos y estado global
+→ mostrar EcuState mediante LEDs
+```
 
 ## 11. Compilación y programación
 
@@ -289,15 +333,20 @@ Dirección Flash:
     PB8 azul.
 3.  Montar TPS: B103 entre 3.3 V/GND, cursor a PA0.
 4.  Montar NTC: 3.3 V → 9.97 kΩ → nodo PA1 → NTC 10 kΩ → GND.
-5.  Antes de conectar una señal analógica al MCU, verificar con
+5.  Conectar MAP o una fuente de prueba limitada a 0...3.3 V en PA2.
+6.  Antes de conectar una señal analógica al MCU, verificar con
     multímetro que no exceda 3.3 V.
-6.  Ejecutar `./scripts/stm32_control_test.sh`.
-7.  Verificar TPS válido → OPERATIONAL/verde.
-8.  Llevar TPS por debajo de 0.5 V durante más de 200 ms →
+7.  Ejecutar `./scripts/stm32_control_test.sh`.
+8.  Mantener TPS y MAP por encima de 0.5 V y la temperatura entre -20 y
+    30 °C; verificar `OPERATIONAL`/verde.
+9.  Llevar TPS por debajo de 0.5 V durante más de 200 ms →
     DEGRADED/amarillo.
-9.  Restaurar TPS y verificar recuperación.
-10. Verificar que la temperatura estimada cambia coherentemente al
+10. Restaurar TPS durante más de 500 ms y verificar recuperación.
+11. Repetir el caso degradado llevando MAP por debajo de 0.5 V.
+12. Verificar que la temperatura estimada cambia coherentemente al
     variar físicamente la temperatura del NTC.
+13. Superar 30 °C durante más de 200 ms y verificar `SAFE_STATE`/rojo;
+    restaurar el rango durante más de 500 ms y verificar recuperación.
 
 ## 13. Estado alcanzado
 
@@ -308,7 +357,8 @@ Blue Pill STM32F103C8T6
 ├── GPIO: PB5/PB6/PB7/PB8
 ├── ADC1
 │   ├── PA0 → TPS
-│   └── PA1 → NTC temperatura
+│   ├── PA1 → NTC temperatura
+│   └── PA2 → MAP
 ├── adquisición física
 ├── MessageManager / Message
 ├── Gateway
@@ -318,23 +368,11 @@ Blue Pill STM32F103C8T6
 └── indicación física de EcuState
 ```
 
-## 14. Siguiente señal seleccionada
+## 14. Próximos pasos
 
-La siguiente señal de trabajo será:
-
-``` text
-SignalId 107
-MAP — Presión Absoluta
-Rango configurado: 0.5...4.7 V
-Severidad: DEGRADED
-```
-
-**Criterio:** MAP permite continuar inmediatamente con una tercera
-entrada analógica y reutilizar el camino ADC ya validado. Velocidad/RPM
-introducirían timers/captura de pulsos; la señal de voltaje 8--16 V
-necesita acondicionamiento antes de entrar a un ADC de 3.3 V. MAP
-mantiene el foco en ampliar adquisición STM32 sin volver a trabajar el
-CORE.
-
-**Decisión de continuidad:** TPS y temperatura se consideran terminados;
-la siguiente señal es MAP, SignalId 107.
+- Validar físicamente MAP a través de PA2 y documentar mediciones.
+- Calibrar el modelo NTC y justificar el límite superior actual de 30 °C.
+- Definir acondicionamiento para señales que excedan 3.3 V.
+- Incorporar velocidad/RPM mediante temporizadores o captura de pulsos.
+- Añadir pruebas de timeout, simultaneidad y recuperación para las tres
+  entradas físicas.

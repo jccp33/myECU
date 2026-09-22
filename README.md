@@ -23,7 +23,7 @@ una máquina de estados global con modos `INIT`, `SELF_TEST`, `OPERATIONAL`,
 - La aplicación STM32 utiliza el mismo pipeline funcional que el simulador.
 - `control_test` fue compilado, grabado y verificado en un STM32F103 mediante
   ST-Link.
-- La adquisición física actual utiliza ADC1 para TPS y temperatura NTC.
+- La adquisición física actual utiliza ADC1 para TPS, temperatura NTC y MAP.
 
 La purga arquitectónica y la validación física completa continúan en progreso.
 En particular, quedan pendientes una validación exhaustiva de entradas
@@ -120,7 +120,7 @@ señal:
 | 101 | Permiso de apagado/freno | 0–1 | Warning | Recuperable |
 | 102 | Velocidad | 0–220 km/h | Degraded | Recuperable |
 | 103 | RPM | 0–7000 rpm | Critical | Recuperable |
-| 104 | Temperatura | -20–130 °C | Critical | Recuperable |
+| 104 | Temperatura | -20–30 °C | Critical | Recuperable |
 | 105 | Voltaje | 8–16 V | Critical | Latched |
 | 106 | TPS | 0.5–4.8 V | Degraded | Recuperable |
 | 107 | MAP | 0.5–4.7 V | Degraded | Recuperable |
@@ -224,16 +224,43 @@ La plataforma bare-metal incluye:
 - linker script para STM32F103C8T6;
 - contador de milisegundos mediante SysTick;
 - control de LEDs en GPIOB;
-- ADC1 para los canales 0 y 1;
+- ADC1 para los canales 0, 1 y 2;
 - conversión de TPS a voltaje;
 - estimación de temperatura mediante divisor NTC;
 - visualización del estado de la ECU mediante LEDs.
 
-El firmware de prueba mantiene valores nominales para las señales que todavía
-no tienen adquisición física. TPS y temperatura entran por el mismo contrato
-`Message` utilizado por el simulador. Una lectura NTC eléctricamente inválida
-no actualiza el mensaje; el timeout del CORE termina detectando la ausencia de
-una muestra válida.
+El firmware de prueba mantiene valores nominales para las siete señales que
+todavía no tienen adquisición física. TPS, temperatura y MAP entran por el
+mismo contrato `Message` utilizado por el simulador:
+
+| Señal | Entrada STM32 | Tratamiento |
+|---|---|---|
+| TPS (`106`) | PA0 / ADC1_IN0 | ADC a voltaje |
+| Temperatura (`104`) | PA1 / ADC1_IN1 | divisor NTC y modelo Beta |
+| MAP (`107`) | PA2 / ADC1_IN2 | ADC a voltaje |
+
+Una lectura NTC eléctricamente inválida (`ADC <= 100` o `ADC >= 4000`) no
+actualiza el mensaje; el timeout del CORE termina detectando la ausencia de
+una muestra válida. TPS y MAP se actualizan en cada ciclo de adquisición.
+
+El ciclo STM32 se ejecuta cada 100 ms. Los fallos actuales se confirman tras
+200 ms y los recuperables regresan a inactivos después de 500 ms continuos sin
+la condición de fallo.
+
+### LEDs de estado
+
+| Estado ECU | LED externo | Pin |
+|---|---|---|
+| `INIT` / `SELF_TEST` | Azul | PB8 |
+| `OPERATIONAL` | Verde | PB5 |
+| `DEGRADED` | Amarillo | PB6 |
+| `SAFE_STATE` | Rojo | PB7 |
+| `SHUTDOWN_REQ` / `SHUTDOWN` | Apagados | — |
+
+Los GPIO son activos en alto y cada LED requiere una resistencia limitadora,
+usada actualmente con un valor de 220 Ω. Las entradas analógicas deben
+permanecer entre 0 y 3.3 V, aunque algunos límites lógicos configurados sean
+superiores.
 
 ### Compilar y flashear `control_test`
 

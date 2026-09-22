@@ -17,6 +17,13 @@ La plataforma validada actualmente es:
 - Analizador lógico: Saleae-compatible FX2, 8 canales
 - Software de captura: PulseView / sigrok
 
+> **Estado del documento:** las secciones de validación siguientes conservan
+> el registro histórico de la integración inicial del TPS. El firmware STM32
+> vigente adquiere además temperatura NTC por PA1/ADC1_IN1 y MAP por
+> PA2/ADC1_IN2. `control_test.cpp` inyecta valores nominales únicamente para
+> las siete señales restantes. La integración de MAP en software está hecha;
+> su validación física completa continúa pendiente.
+
 ## Estructura STM32
 
 ```text
