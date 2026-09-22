@@ -30,10 +30,7 @@ class Message {
             TimestampMs timestamp
         );
         // setters
-        void setSignalId(const SignalId &id);
         void setRawValue(float value);
-        void setMinValue(float min);
-        void setMaxValue(float value);
         void setSignalStatus(SignalStatus status);
         void setTimesStamp(TimestampMs timestamp);
         // getters

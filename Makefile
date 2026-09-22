@@ -7,13 +7,11 @@
 # Los tests están excluidos temporalmente mientras se completa
 # la purga y alineación arquitectónica del proyecto.
 
-
 # ============================================================
 # Compilador y flags
 # ============================================================
 
 CXX = g++
-
 CXXFLAGS = -Wall \
            -Wextra \
            -pedantic \
@@ -24,13 +22,10 @@ CXXFLAGS = -Wall \
            -Wnull-dereference \
            -Wdouble-promotion \
            -std=c++11
-
-CPPFLAGS = -I./include
-
+CPPFLAGS = -I./include -I./core/include
 SANITIZER_FLAGS = -fsanitize=address,undefined \
                   -fno-omit-frame-pointer \
                   -g
-
 
 # ============================================================
 # Directorios
@@ -38,8 +33,9 @@ SANITIZER_FLAGS = -fsanitize=address,undefined \
 
 SRC_DIR = src
 INCLUDE_DIR = include
+CORE_SRC_DIR = core/src
+CORE_INCLUDE_DIR = core/include
 BUILD_DIR = build
-
 
 # ============================================================
 # Ejecutable y librería
@@ -48,13 +44,11 @@ BUILD_DIR = build
 TARGET = ecu
 CORE_LIBRARY = $(BUILD_DIR)/libecu_core.a
 
-
 # ============================================================
 # ECU Core
 # ============================================================
 
 CORE_OBJECTS = $(BUILD_DIR)/message.o \
-               $(BUILD_DIR)/config.o \
                $(BUILD_DIR)/mssgmanager.o \
                $(BUILD_DIR)/getaway.o \
                $(BUILD_DIR)/control.o \
@@ -62,21 +56,19 @@ CORE_OBJECTS = $(BUILD_DIR)/message.o \
                $(BUILD_DIR)/fault_state_machine.o \
                $(BUILD_DIR)/fault_manager.o \
                $(BUILD_DIR)/ecu_state_machine.o \
-               $(BUILD_DIR)/signal_store.o \
                $(BUILD_DIR)/fault_configuration.o \
                $(BUILD_DIR)/diagnostic_status.o
-
 
 # ============================================================
 # Simulador Linux
 # ============================================================
 
 SIMULATOR_OBJECTS = $(BUILD_DIR)/main.o \
+                    $(BUILD_DIR)/config.o \
                     $(BUILD_DIR)/utils.o \
                     $(BUILD_DIR)/simulations.o \
                     $(BUILD_DIR)/sensor_simulation.o \
                     $(BUILD_DIR)/linux_platform.o
-
 
 # ============================================================
 # Targets principales
@@ -94,7 +86,6 @@ compile: $(TARGET)
 core: $(CORE_LIBRARY)
 	@echo "✓ Core compilado: $(CORE_LIBRARY)"
 
-
 # ============================================================
 # Ejecutable
 # ============================================================
@@ -103,7 +94,6 @@ $(TARGET): $(SIMULATOR_OBJECTS) $(CORE_LIBRARY)
 	$(CXX) $(CXXFLAGS) -o $@ $(SIMULATOR_OBJECTS) $(CORE_LIBRARY)
 	@echo "✓ Compilación completada: $(TARGET)"
 
-
 # ============================================================
 # Librería estática ECU Core
 # ============================================================
@@ -111,7 +101,6 @@ $(TARGET): $(SIMULATOR_OBJECTS) $(CORE_LIBRARY)
 $(CORE_LIBRARY): $(CORE_OBJECTS)
 	ar rcs $@ $^
 	@echo "✓ Librería creada: $(CORE_LIBRARY)"
-
 
 # ============================================================
 # Objetos del simulador
@@ -142,7 +131,7 @@ $(BUILD_DIR)/simulations.o: \
 $(BUILD_DIR)/sensor_simulation.o: \
     $(SRC_DIR)/sensor_simulation.cpp \
     $(INCLUDE_DIR)/sensor_simulation.hpp \
-    $(INCLUDE_DIR)/data_types.hpp
+    $(CORE_INCLUDE_DIR)/data_types.hpp
 	mkdir -p $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
 	@echo "✓ Compilado: $<"
@@ -154,15 +143,14 @@ $(BUILD_DIR)/linux_platform.o: \
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
 	@echo "✓ Compilado: $<"
 
-
 # ============================================================
 # Objetos ECU Core
 # ============================================================
 
 $(BUILD_DIR)/message.o: \
-    $(SRC_DIR)/message.cpp \
-    $(INCLUDE_DIR)/message.hpp \
-    $(INCLUDE_DIR)/data_types.hpp
+    $(CORE_SRC_DIR)/message.cpp \
+    $(CORE_INCLUDE_DIR)/message.hpp \
+    $(CORE_INCLUDE_DIR)/data_types.hpp
 	mkdir -p $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
 	@echo "✓ Compilado: $<"
@@ -170,100 +158,89 @@ $(BUILD_DIR)/message.o: \
 $(BUILD_DIR)/config.o: \
     $(SRC_DIR)/config.cpp \
     $(INCLUDE_DIR)/config.hpp \
-    $(INCLUDE_DIR)/data_types.hpp
+    $(CORE_INCLUDE_DIR)/data_types.hpp
 	mkdir -p $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
 	@echo "✓ Compilado: $<"
 
 $(BUILD_DIR)/mssgmanager.o: \
-    $(SRC_DIR)/mssgmanager.cpp \
-    $(INCLUDE_DIR)/mssgmanager.hpp \
-    $(INCLUDE_DIR)/message.hpp \
-    $(INCLUDE_DIR)/data_types.hpp
+    $(CORE_SRC_DIR)/mssgmanager.cpp \
+    $(CORE_INCLUDE_DIR)/mssgmanager.hpp \
+    $(CORE_INCLUDE_DIR)/message.hpp \
+    $(CORE_INCLUDE_DIR)/data_types.hpp
 	mkdir -p $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
 	@echo "✓ Compilado: $<"
 
 $(BUILD_DIR)/getaway.o: \
-    $(SRC_DIR)/getaway.cpp \
-    $(INCLUDE_DIR)/getaway.hpp \
-    $(INCLUDE_DIR)/message.hpp
+    $(CORE_SRC_DIR)/getaway.cpp \
+    $(CORE_INCLUDE_DIR)/getaway.hpp \
+    $(CORE_INCLUDE_DIR)/message.hpp
 	mkdir -p $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
 	@echo "✓ Compilado: $<"
 
 $(BUILD_DIR)/control.o: \
-    $(SRC_DIR)/control.cpp \
-    $(INCLUDE_DIR)/control.hpp \
-    $(INCLUDE_DIR)/message.hpp \
-    $(INCLUDE_DIR)/fault_manager.hpp \
-    $(INCLUDE_DIR)/ecu_state_machine.hpp
+    $(CORE_SRC_DIR)/control.cpp \
+    $(CORE_INCLUDE_DIR)/control.hpp \
+    $(CORE_INCLUDE_DIR)/message.hpp \
+    $(CORE_INCLUDE_DIR)/fault_manager.hpp \
+    $(CORE_INCLUDE_DIR)/ecu_state_machine.hpp
 	mkdir -p $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
 	@echo "✓ Compilado: $<"
 
 $(BUILD_DIR)/evaluation_rule.o: \
-    $(SRC_DIR)/evaluation_rule.cpp \
-    $(INCLUDE_DIR)/evaluation_rule.hpp \
-    $(INCLUDE_DIR)/data_types.hpp
+    $(CORE_SRC_DIR)/evaluation_rule.cpp \
+    $(CORE_INCLUDE_DIR)/evaluation_rule.hpp \
+    $(CORE_INCLUDE_DIR)/data_types.hpp
 	mkdir -p $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
 	@echo "✓ Compilado: $<"
 
 $(BUILD_DIR)/fault_state_machine.o: \
-    $(SRC_DIR)/fault_state_machine.cpp \
-    $(INCLUDE_DIR)/fault_state_machine.hpp \
-    $(INCLUDE_DIR)/evaluation_rule.hpp \
-    $(INCLUDE_DIR)/data_types.hpp
+    $(CORE_SRC_DIR)/fault_state_machine.cpp \
+    $(CORE_INCLUDE_DIR)/fault_state_machine.hpp \
+    $(CORE_INCLUDE_DIR)/evaluation_rule.hpp \
+    $(CORE_INCLUDE_DIR)/data_types.hpp
 	mkdir -p $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
 	@echo "✓ Compilado: $<"
 
 $(BUILD_DIR)/fault_manager.o: \
-    $(SRC_DIR)/fault_manager.cpp \
-    $(INCLUDE_DIR)/fault_manager.hpp \
-    $(INCLUDE_DIR)/fault_state_machine.hpp \
-    $(INCLUDE_DIR)/evaluation_rule.hpp \
-    $(INCLUDE_DIR)/data_types.hpp
+    $(CORE_SRC_DIR)/fault_manager.cpp \
+    $(CORE_INCLUDE_DIR)/fault_manager.hpp \
+    $(CORE_INCLUDE_DIR)/fault_state_machine.hpp \
+    $(CORE_INCLUDE_DIR)/evaluation_rule.hpp \
+    $(CORE_INCLUDE_DIR)/data_types.hpp
 	mkdir -p $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
 	@echo "✓ Compilado: $<"
 
 $(BUILD_DIR)/ecu_state_machine.o: \
-    $(SRC_DIR)/ecu_state_machine.cpp \
-    $(INCLUDE_DIR)/ecu_state_machine.hpp \
-    $(INCLUDE_DIR)/data_types.hpp
-	mkdir -p $(BUILD_DIR)
-	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
-	@echo "✓ Compilado: $<"
-
-$(BUILD_DIR)/signal_store.o: \
-    $(SRC_DIR)/signal_store.cpp \
-    $(INCLUDE_DIR)/signal_store.hpp \
-    $(INCLUDE_DIR)/signal_sample.hpp \
-    $(INCLUDE_DIR)/data_types.hpp
+    $(CORE_SRC_DIR)/ecu_state_machine.cpp \
+    $(CORE_INCLUDE_DIR)/ecu_state_machine.hpp \
+    $(CORE_INCLUDE_DIR)/data_types.hpp
 	mkdir -p $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
 	@echo "✓ Compilado: $<"
 
 $(BUILD_DIR)/fault_configuration.o: \
-    $(SRC_DIR)/fault_configuration.cpp \
-    $(INCLUDE_DIR)/fault_configuration.hpp \
-    $(INCLUDE_DIR)/evaluation_rule.hpp \
-    $(INCLUDE_DIR)/data_types.hpp
+    $(CORE_SRC_DIR)/fault_configuration.cpp \
+    $(CORE_INCLUDE_DIR)/fault_configuration.hpp \
+    $(CORE_INCLUDE_DIR)/evaluation_rule.hpp \
+    $(CORE_INCLUDE_DIR)/data_types.hpp
 	mkdir -p $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
 	@echo "✓ Compilado: $<"
 
 $(BUILD_DIR)/diagnostic_status.o: \
-    $(SRC_DIR)/diagnostic_status.cpp \
-    $(INCLUDE_DIR)/diagnostic_status.hpp \
-    $(INCLUDE_DIR)/fault_configuration.hpp \
-    $(INCLUDE_DIR)/fault_manager.hpp
+    $(CORE_SRC_DIR)/diagnostic_status.cpp \
+    $(CORE_INCLUDE_DIR)/diagnostic_status.hpp \
+    $(CORE_INCLUDE_DIR)/data_types.hpp
 	mkdir -p $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
 	@echo "✓ Compilado: $<"
-
 
 # ============================================================
 # Ejecución
@@ -276,7 +253,6 @@ run:
 	}
 	./$(TARGET)
 
-
 # ============================================================
 # Sanitizers
 # ============================================================
@@ -284,7 +260,6 @@ run:
 sanitize:
 	$(MAKE) clean
 	$(MAKE) CXXFLAGS="$(CXXFLAGS) $(SANITIZER_FLAGS)" build
-
 
 # ============================================================
 # Limpieza
@@ -299,7 +274,6 @@ clean:
 distclean: clean
 	rm -rf $(BUILD_DIR)
 	@echo "✓ Directorio build eliminado"
-
 
 # ============================================================
 # Información

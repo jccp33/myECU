@@ -42,20 +42,8 @@ void Message::setSignalStatus(SignalStatus _status) {
     status = _status;
 }
 
-void Message::setSignalId(const SignalId &id) {
-    signalId = id;
-}
-
 void Message::setRawValue(float value) {
     rawValue = value;
-}
-
-void Message::setMinValue(float min) {
-    minValue = min;
-}
-
-void Message::setMaxValue(float max) {
-    maxValue = max;
 }
 
 void Message::setTimesStamp(TimestampMs timestamp) {

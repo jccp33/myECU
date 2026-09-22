@@ -3,7 +3,6 @@
 
 #include "data_types.hpp"
 #include "evaluation_rule.hpp"
-#include "data_types.hpp"
 
 FaultRecord updateFaultRecord(
     const EvaluationRule &rule,

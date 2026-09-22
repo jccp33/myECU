@@ -11,8 +11,7 @@ enum class DiagnosticStatus : std::uint8_t {
     AVAILABLE,
     CONFIGURATION_ERROR,
     CLOCK_ERROR,
-    EVALUATION_ERROR,
-    INVALID_SIGNAL_SAMPLE
+    EVALUATION_ERROR
 };
 
 constexpr bool isDiagnosticAvailable(DiagnosticStatus status) {

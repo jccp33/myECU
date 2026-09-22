@@ -7,8 +7,9 @@ Implementa una máquina de estados a nivel de sistema, supervisión configurable
 de señales, confirmación temporal de fallos y separación entre lógica de ECU y
 dependencias de plataforma.
 
-Actualmente el mismo CORE se compila y ejecuta tanto en host como sobre un
-STM32F103C8T6.
+El CORE vigente compila en host, incluido el perfil embedded/freestanding. La
+aplicación STM32F103C8T6 está pendiente de alinearse con este pipeline después
+de la reorganización arquitectónica.
 
 > Estado: prototipo funcional educativo. No es software homologado ni debe
 > instalarse en un vehículo.
@@ -26,13 +27,14 @@ MAX_SENSOR_COUNT ya es configurable por build
 Flujo de cada ciclo:
 
 ```text
-señales → SignalSample → SignalStore → reglas → FaultManager
-        → FaultSummary + DiagnosticStatus → Control → EcuState
+señales → MessageManager → Message → Gateway → SignalStatus
+        → Control → FaultManager / EcuStateMachine → EcuState
 ```
 
-`Control` no conoce sensores concretos, rangos físicos ni mensajes. Consume
-entradas genéricas. Las diferencias entre señales se expresan mediante reglas,
-no mediante un `switch` por sensor en el CORE.
+`Gateway` es la única autoridad de rango y timeout. `Control` consume el estado
+ya evaluado y no conoce sensores concretos ni vuelve a comparar magnitudes
+físicas. Las diferencias diagnósticas entre señales provienen de
+`SystemConfig`, no de un `switch` por sensor en el CORE.
 
 Documentación detallada:
 
@@ -72,13 +74,16 @@ la política es fail-safe.
 
 ## Supervisión de fallos
 
-Cada `EvaluationRule` identifica una señal mediante `SignalId` y define:
+Cada `EvaluationRule` identifica una señal mediante `SignalId` y conserva la
+política temporal derivada de `SystemConfig`:
 
-- evaluación `RANGE` o `TIMEOUT`;
-- umbrales o edad máxima;
 - tiempos de confirmación y recuperación;
-- error, severidad y tipo de fallo;
+- severidad;
 - política `RECOVERABLE` o `LATCHED`.
+
+El rango y timeout permanecen en el `Message` derivado de `SystemConfig` y son
+evaluados exclusivamente por `Gateway`. `OUT_OF_RANGE` y `TIMEOUT` son estados
+de la señal, no reglas o faults independientes.
 
 ```mermaid
 stateDiagram-v2
@@ -98,7 +103,7 @@ latched, degradado y cantidad total de fallos activos.
 
 ## Señales configuradas
 
-Hay 10 señales y dos reglas por señal: rango y timeout.
+Hay 10 señales y un registro diagnóstico por señal.
 
 | ID | Señal | Rango | Severidad de rango | Política |
 |---:|---|---:|---|---|
@@ -119,23 +124,12 @@ edad máxima de 500 ms.
 ## Memoria determinista
 
 - `MAX_SENSOR_COUNT = 128`.
-- Máximo de tres reglas por señal: 384 registros.
+- Máximo de una regla y un registro de fault por señal configurada.
 - Sin `new`, `delete`, `malloc` ni `free` en el CORE.
 
-Medición orientativa en Linux x86-64 con GCC:
-
-| Tipo | Tamaño |
-|---|---:|
-| `SignalSample` | 32 bytes |
-| `FaultRecord` | 16 bytes |
-| `EvaluationRule` | 56 bytes |
-| `SignalStore` | 4,104 bytes |
-| `FaultManager` | 6,184 bytes |
-| `Control` | 1 byte |
-| `EcuStateInputs` | 12 bytes |
-
-`SignalStore + FaultManager` ocupan aproximadamente 10.1 KiB en el host. El
-tamaño final debe medirse con el compilador y ABI del MCU.
+El CORE usa `std::array` y almacenamiento de capacidad fija. Las cifras de una
+arquitectura anterior basada en `SignalStore` fueron retiradas; el tamaño final
+debe medirse con el compilador, configuración y ABI objetivo.
 
 ## Compilación rápida
 
@@ -145,7 +139,6 @@ Requisitos: GCC o Clang con C++11, CMake 3.16+ o GNU Make.
 make
 ./ecu
 ./ecu -auto
-make test
 ```
 
 Con CMake:
@@ -153,7 +146,6 @@ Con CMake:
 ```bash
 cmake -S . -B build-cmake -DCMAKE_BUILD_TYPE=Debug
 cmake --build build-cmake
-ctest --test-dir build-cmake --output-on-failure
 ./build-cmake/ecu_simulator -auto
 ```
 
@@ -164,11 +156,11 @@ cmake -S . -B build-embedded \
   -DBUILD_ECU_SIMULATOR=OFF \
   -DECU_CORE_EMBEDDED_PROFILE=ON
 cmake --build build-embedded
-ctest --test-dir build-embedded --output-on-failure
 ```
 
 El perfil usa un subconjunto freestanding sin excepciones ni RTTI y compila
 cada header público aisladamente para detectar dependencias accidentales.
+La reconstrucción e integración de las pruebas funcionales permanece pendiente.
 
 ## Simulación automática
 

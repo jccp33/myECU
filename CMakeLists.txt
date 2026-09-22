@@ -126,21 +126,18 @@ add_library(
     ecu_core
     STATIC
 
-    src/message.cpp
-    src/config.cpp
-    src/mssgmanager.cpp
-    src/getaway.cpp
-    src/control.cpp
+    core/src/message.cpp
+    core/src/mssgmanager.cpp
+    core/src/getaway.cpp
+    core/src/control.cpp
 
-    src/evaluation_rule.cpp
-    src/fault_state_machine.cpp
-    src/fault_manager.cpp
-    src/ecu_state_machine.cpp
+    core/src/evaluation_rule.cpp
+    core/src/fault_state_machine.cpp
+    core/src/fault_manager.cpp
+    core/src/ecu_state_machine.cpp
 
-    src/signal_store.cpp
-
-    src/fault_configuration.cpp
-    src/diagnostic_status.cpp
+    core/src/fault_configuration.cpp
+    core/src/diagnostic_status.cpp
 )
 
 
@@ -154,7 +151,7 @@ target_compile_features(
 target_include_directories(
     ecu_core
     PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/core/include
 )
 
 
@@ -173,10 +170,18 @@ if(BUILD_ECU_SIMULATOR)
 
         main.cpp
 
+        src/config.cpp
         src/utils.cpp
         src/simulations.cpp
         src/sensor_simulation.cpp
         src/linux_platform.cpp
+    )
+
+
+    target_include_directories(
+        ecu_simulator
+        PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/include
     )
 
 
@@ -213,15 +218,20 @@ endif()
 #   - dependencia accidental de plataforma;
 #   - problemas de portabilidad del Core.
 #
-# signal_sample.hpp y signal_store.hpp se mantienen mientras
-# se evalúa la alineación de STM32.
+# Únicamente se incluyen aquí los headers actualmente
+# clasificados como parte del ECU Core.
+#
+# signal_sample.hpp y signal_store.hpp permanecen fuera del
+# Core mientras se resuelve su clasificación arquitectónica.
+#
+# config.hpp permanece fuera del Core porque representa la
+# configuración concreta de la aplicación.
 # ============================================================
 
 set(
     ECU_CORE_PUBLIC_HEADERS
     data_types.hpp
     message.hpp
-    config.hpp
     mssgmanager.hpp
     getaway.hpp
     control.hpp
@@ -229,46 +239,54 @@ set(
     fault_state_machine.hpp
     fault_manager.hpp
     ecu_state_machine.hpp
-    signal_sample.hpp
-    signal_store.hpp
     fault_configuration.hpp
     diagnostic_status.hpp
 )
 
+
 foreach(header IN LISTS ECU_CORE_PUBLIC_HEADERS)
+
     string(
         MAKE_C_IDENTIFIER
         "${header}"
         header_id
     )
+
     set(
         header_check_source
         "${CMAKE_CURRENT_BINARY_DIR}/${header_id}_check.cpp"
     )
+
     file(
         GENERATE
         OUTPUT "${header_check_source}"
         CONTENT "#include \"${header}\"\n"
     )
+
     add_library(
         "ecu_${header_id}_check"
         OBJECT
         "${header_check_source}"
     )
+
     target_compile_features(
         "ecu_${header_id}_check"
         PRIVATE
             cxx_std_11
     )
+
     target_include_directories(
         "ecu_${header_id}_check"
         PRIVATE
-            ${CMAKE_CURRENT_SOURCE_DIR}/include
+            ${CMAKE_CURRENT_SOURCE_DIR}/core/include
     )
+
     enable_project_warnings(
         "ecu_${header_id}_check"
     )
+
     enable_ecu_core_profile(
         "ecu_${header_id}_check"
     )
+
 endforeach()
