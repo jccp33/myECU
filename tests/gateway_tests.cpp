@@ -1,145 +1,35 @@
 #include "getaway.hpp"
 #include "message.hpp"
-
 #include <cstdlib>
 #include <iostream>
-#include <string>
 
 namespace {
-
-Message createMessage(
-    float value,
-    float minimum,
-    float maximum,
-    TimestampMs timestamp,
-    TimestampMs timeout
-) {
-    return Message(
-        100U,
-        SensorId::TPS,
-        value,
-        false,
-        minimum,
-        maximum,
-        timeout,
-        false,
-        0.0F,
-        timestamp
-    );
-}
-
-bool expectValidatedStatus(
-    const std::string& testName,
-    float value,
-    float minimum,
-    float maximum,
-    TimestampMs messageTimestamp,
-    TimestampMs timeout,
-    TimestampMs currentTime,
-    SignalStatus expectedStatus
-) {
+bool expectStatus(const char* name, Message message, TimestampMs now, SignalStatus expected) {
     const Gateway gateway;
-    Message message = createMessage(
-        value,
-        minimum,
-        maximum,
-        messageTimestamp,
-        timeout
-    );
-
-    gateway.validateMessage(message, currentTime);
-
-    if (message.getSignalStatus() != expectedStatus) {
-        std::cerr << "FAILED: " << testName << '\n';
+    gateway.validateMessage(message, now);
+    if (message.getSignalStatus() != expected) {
+        std::cerr << "FAILED: " << name << '\n';
         return false;
     }
-
-    std::cout << "PASSED: " << testName << '\n';
+    std::cout << "PASSED: " << name << '\n';
     return true;
 }
 
-}  // namespace
+Message message(float value, float minimum, float maximum, TimestampMs timestamp, TimestampMs timeout) {
+    return Message(SignalId(1U, 1U, 100U, 0U), value, minimum, maximum,
+        timeout, false, false, 0.0F, timestamp);
+}
+} // namespace
 
 int main() {
-    int failures = 0;
-
-    if (!expectValidatedStatus(
-            "value inside range",
-            2.5F, 0.5F, 4.8F,
-            1000U, 500U, 1200U,
-            SignalStatus::VALID)) {
-        ++failures;
-    }
-
-    if (!expectValidatedStatus(
-            "value below minimum",
-            0.49F, 0.5F, 4.8F,
-            1000U, 500U, 1200U,
-            SignalStatus::OUT_OF_RANGE)) {
-        ++failures;
-    }
-
-    if (!expectValidatedStatus(
-            "value above maximum",
-            4.81F, 0.5F, 4.8F,
-            1000U, 500U, 1200U,
-            SignalStatus::OUT_OF_RANGE)) {
-        ++failures;
-    }
-
-    if (!expectValidatedStatus(
-            "expired message",
-            2.5F, 0.5F, 4.8F,
-            1000U, 500U, 1501U,
-            SignalStatus::TIMEOUT)) {
-        ++failures;
-    }
-
-    if (!expectValidatedStatus(
-            "timeout minus one millisecond",
-            2.5F, 0.5F, 4.8F,
-            1000U, 500U, 1499U,
-            SignalStatus::VALID)) {
-        ++failures;
-    }
-
-    if (!expectValidatedStatus(
-            "exactly at timeout",
-            2.5F, 0.5F, 4.8F,
-            1000U, 500U, 1500U,
-            SignalStatus::VALID)) {
-        ++failures;
-    }
-
-    if (!expectValidatedStatus(
-            "timeout plus one millisecond",
-            2.5F, 0.5F, 4.8F,
-            1000U, 500U, 1501U,
-            SignalStatus::TIMEOUT)) {
-        ++failures;
-    }
-
-    if (!expectValidatedStatus(
-            "value exactly at minimum",
-            0.5F, 0.5F, 4.8F,
-            1000U, 500U, 1200U,
-            SignalStatus::VALID)) {
-        ++failures;
-    }
-
-    if (!expectValidatedStatus(
-            "value exactly at maximum",
-            4.8F, 0.5F, 4.8F,
-            1000U, 500U, 1200U,
-            SignalStatus::VALID)) {
-        ++failures;
-    }
-
-    if (failures != 0) {
-        std::cerr << failures << " Gateway test(s) failed\n";
-        return EXIT_FAILURE;
-    }
-
-    std::cout << "All Gateway tests passed\n";
-    return EXIT_SUCCESS;
+    const bool passed =
+        expectStatus("value inside range is valid", message(50.0F, 0.0F, 100.0F, 100U, 50U), 150U, SignalStatus::VALID)
+        && expectStatus("minimum is inclusive", message(0.0F, 0.0F, 100.0F, 100U, 50U), 100U, SignalStatus::VALID)
+        && expectStatus("maximum is inclusive", message(100.0F, 0.0F, 100.0F, 100U, 50U), 100U, SignalStatus::VALID)
+        && expectStatus("value below range is rejected", message(-1.0F, 0.0F, 100.0F, 100U, 50U), 100U, SignalStatus::OUT_OF_RANGE)
+        && expectStatus("value above range is rejected", message(101.0F, 0.0F, 100.0F, 100U, 50U), 100U, SignalStatus::OUT_OF_RANGE)
+        && expectStatus("timeout boundary is valid", message(50.0F, 0.0F, 100.0F, 100U, 50U), 150U, SignalStatus::VALID)
+        && expectStatus("age above timeout expires", message(50.0F, 0.0F, 100.0F, 100U, 50U), 151U, SignalStatus::TIMEOUT)
+        && expectStatus("timeout takes precedence over range", message(101.0F, 0.0F, 100.0F, 100U, 50U), 151U, SignalStatus::TIMEOUT);
+    return passed ? EXIT_SUCCESS : EXIT_FAILURE;
 }

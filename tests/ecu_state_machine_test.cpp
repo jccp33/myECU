@@ -238,8 +238,7 @@ bool testUnavailableDiagnosticsFailSafe() {
         DiagnosticStatus::NOT_AVAILABLE,
         DiagnosticStatus::CONFIGURATION_ERROR,
         DiagnosticStatus::CLOCK_ERROR,
-        DiagnosticStatus::EVALUATION_ERROR,
-        DiagnosticStatus::INVALID_SIGNAL_SAMPLE
+        DiagnosticStatus::EVALUATION_ERROR
     };
 
     bool passed = true;

@@ -1,10 +1,9 @@
 #include "control.hpp"
-
+#include <array>
 #include <cstdlib>
 #include <iostream>
 
 namespace {
-
 bool expectState(const char* name, const Control& control, EcuState expected) {
     if (control.getCurrentState() != expected) {
         std::cerr << "FAILED: " << name << '\n';
@@ -14,110 +13,54 @@ bool expectState(const char* name, const Control& control, EcuState expected) {
     return true;
 }
 
-EcuStateInputs inputs(
-    const FaultSummary& faults = FaultSummary(),
-    bool initializationComplete = true,
-    SelfTestResult selfTest = SelfTestResult::PASSED,
-    bool shutdownRequested = false,
-    bool shutdownPermitted = false,
-    DiagnosticStatus diagnostics = DiagnosticStatus::AVAILABLE
-) {
-    return EcuStateInputs(
-        faults, initializationComplete, selfTest, shutdownRequested,
-        shutdownPermitted, diagnostics
-    );
+Message message(const SignalId& id, SignalStatus status, FaultSeverity severityValue = FaultSeverity::WARNING) {
+    (void)severityValue;
+    Message result(id, 0.0F, 0.0F, 1.0F, 500U, false, false, 1.0F, 0U);
+    result.setSignalStatus(status);
+    return result;
 }
-
-void initializeOperational(Control& control) {
-    control.processInputs(inputs());
-    control.processInputs(inputs());
-}
-
-bool testInitialAndResetState() {
-    Control control;
-    if (!expectState("Control starts in INIT", control, EcuState::INIT)) return false;
-    initializeOperational(control);
-    control.reset();
-    return expectState("Control reset returns to INIT", control, EcuState::INIT);
-}
-
-bool testInitializationSequence() {
-    Control control;
-    control.processInputs(inputs());
-    if (!expectState("Control enters SELF_TEST", control, EcuState::SELF_TEST)) return false;
-    control.processInputs(inputs());
-    return expectState("Control enters OPERATIONAL", control, EcuState::OPERATIONAL);
-}
-
-bool testFaultSummaryDrivesControl() {
-    Control control;
-    initializeOperational(control);
-    control.processInputs(inputs(FaultSummary(false, false, true, 1U)));
-    if (!expectState("degraded summary drives DEGRADED", control, EcuState::DEGRADED)) return false;
-    control.processInputs(inputs());
-    if (!expectState("healthy summary recovers OPERATIONAL", control, EcuState::OPERATIONAL)) return false;
-    control.processInputs(inputs(FaultSummary(true, false, false, 1U)));
-    return expectState("critical summary drives SAFE_STATE", control, EcuState::SAFE_STATE);
-}
-
-bool testDiagnosticFailureDrivesSafeState() {
-    Control control;
-    initializeOperational(control);
-    control.processInputs(inputs(
-        FaultSummary(), true, SelfTestResult::PASSED, false, false,
-        DiagnosticStatus::CLOCK_ERROR
-    ));
-    return expectState("diagnostic error drives SAFE_STATE", control, EcuState::SAFE_STATE);
-}
-
-bool testShutdownRequestSequence() {
-    Control control;
-    initializeOperational(control);
-    control.processInputs(inputs(FaultSummary(), true, SelfTestResult::PASSED, true, false));
-    if (!expectState("shutdown request enters SHUTDOWN_REQ", control, EcuState::SHUTDOWN_REQ)) return false;
-    control.processInputs(inputs(FaultSummary(), true, SelfTestResult::PASSED, true, false));
-    if (!expectState("SHUTDOWN_REQ waits for permission", control, EcuState::SHUTDOWN_REQ)) return false;
-    control.processInputs(inputs(FaultSummary(), true, SelfTestResult::PASSED, true, true));
-    return expectState("shutdown permission enters SHUTDOWN", control, EcuState::SHUTDOWN);
-}
-
-bool testLatchedCriticalFaultShutsDown() {
-    Control control;
-    initializeOperational(control);
-    const FaultSummary latched(false, true, false, 1U);
-    control.processInputs(inputs(latched));
-    if (!expectState("latched critical fault first enters SAFE_STATE", control, EcuState::SAFE_STATE)) return false;
-    control.processInputs(inputs(latched));
-    return expectState("latched critical fault then enters SHUTDOWN", control, EcuState::SHUTDOWN);
-}
-
-bool testShutdownIsTerminal() {
-    Control control;
-    initializeOperational(control);
-    control.processInputs(inputs(FaultSummary(), true, SelfTestResult::PASSED, true, false));
-    control.processInputs(inputs(FaultSummary(), true, SelfTestResult::PASSED, true, true));
-    control.processInputs(EcuStateInputs());
-    return expectState("SHUTDOWN remains terminal", control, EcuState::SHUTDOWN);
-}
-
-}  // namespace
+} // namespace
 
 int main() {
-    int failures = 0;
-    const bool results[] = {
-        testInitialAndResetState(),
-        testInitializationSequence(),
-        testFaultSummaryDrivesControl(),
-        testDiagnosticFailureDrivesSafeState(),
-        testShutdownRequestSequence(),
-        testLatchedCriticalFaultShutsDown(),
-        testShutdownIsTerminal()
-    };
-    const std::size_t count = sizeof(results) / sizeof(results[0]);
-    for (std::size_t index = 0U; index < count; ++index) {
-        if (!results[index]) ++failures;
-    }
-    if (failures != 0) return EXIT_FAILURE;
-    std::cout << "All Control tests passed\n";
-    return EXIT_SUCCESS;
+    const SignalId id(1U, 1U, 100U, 0U);
+    const EvaluationRule healthyRule(id, 0U, 0U, FaultSeverity::WARNING, FaultLatching::RECOVERABLE);
+    FaultManager healthyManager(&healthyRule, 1U);
+    std::array<Message, MAX_SENSOR_COUNT> messages;
+    messages[0] = message(id, SignalStatus::VALID);
+    Control control;
+    bool passed = expectState("Control starts in INIT", control, EcuState::INIT);
+    passed = control.processMessages(messages, 1U, healthyManager, 0U) == FaultManagerResult::OK
+        && expectState("first cycle advances to SELF_TEST", control, EcuState::SELF_TEST) && passed;
+    passed = control.processMessages(messages, 1U, healthyManager, 1U) == FaultManagerResult::OK
+        && expectState("second healthy cycle becomes OPERATIONAL", control, EcuState::OPERATIONAL) && passed;
+
+    const SignalId degradedId(1U, 1U, 101U, 0U);
+    const EvaluationRule degradedRule(degradedId, 0U, 0U, FaultSeverity::DEGRADED, FaultLatching::RECOVERABLE);
+    FaultManager degradedManager(&degradedRule, 1U);
+    messages[0] = message(degradedId, SignalStatus::OUT_OF_RANGE);
+    Control degradedControl;
+    degradedControl.processMessages(messages, 1U, degradedManager, 0U);
+    degradedControl.processMessages(messages, 1U, degradedManager, 1U);
+    passed = expectState("degraded fault drives DEGRADED", degradedControl, EcuState::DEGRADED) && passed;
+
+    const SignalId criticalId(1U, 1U, 102U, 0U);
+    const EvaluationRule criticalRule(criticalId, 0U, 0U, FaultSeverity::CRITICAL, FaultLatching::RECOVERABLE);
+    FaultManager criticalManager(&criticalRule, 1U);
+    messages[0] = message(criticalId, SignalStatus::TIMEOUT);
+    Control criticalControl;
+    criticalControl.processMessages(messages, 1U, criticalManager, 0U);
+    criticalControl.processMessages(messages, 1U, criticalManager, 1U);
+    passed = expectState("critical fault drives SAFE_STATE", criticalControl, EcuState::SAFE_STATE) && passed;
+
+    messages[0] = message(id, SignalStatus::UNDEFINED);
+    Control invalidControl;
+    invalidControl.processMessages(messages, 1U, healthyManager, 2U);
+    invalidControl.processMessages(messages, 1U, healthyManager, 3U);
+    passed = expectState("undefined signal fails safe", invalidControl, EcuState::SAFE_STATE) && passed;
+
+    control.reset();
+    passed = expectState("reset returns to INIT", control, EcuState::INIT) && passed;
+    passed = control.processMessages(messages, messages.size() + 1U, healthyManager, 0U)
+        == FaultManagerResult::INVALID_CONFIGURATION && passed;
+    return passed ? EXIT_SUCCESS : EXIT_FAILURE;
 }

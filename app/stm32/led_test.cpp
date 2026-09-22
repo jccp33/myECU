@@ -12,7 +12,6 @@ namespace
     constexpr std::uintptr_t GPIOB_CRH  = GPIOB_BASE + 0x04UL;
     constexpr std::uintptr_t GPIOB_BSRR = GPIOB_BASE + 0x10UL;
     constexpr std::uintptr_t GPIOB_BRR  = GPIOB_BASE + 0x14UL;
-    
     // Physical Blue Pill
     constexpr std::uint32_t LED_GREEN_PIN_B5 = 5U;
     constexpr std::uint32_t LED_GREEN_PIN_B5_SHIFT = LED_GREEN_PIN_B5 * 4U;
@@ -22,7 +21,7 @@ namespace
     constexpr std::uint32_t LED_RED_PIN_B7_SHIFT = LED_RED_PIN_B7 * 4U;
     constexpr std::uint32_t LED_BLUE_PIN_B8 = 8U;
     constexpr std::uint32_t LED_BLUE_PIN_B8_SHIFT = (LED_BLUE_PIN_B8 - 8U) * 4U;
-    
+    // reg
     volatile std::uint32_t& reg(std::uintptr_t address)
     {
         return *reinterpret_cast<volatile std::uint32_t*>(address);

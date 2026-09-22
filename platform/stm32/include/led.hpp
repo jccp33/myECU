@@ -13,10 +13,3 @@ namespace platform{
     void turnLedOff(Led led);
     void turnAllLedsOff();
 }
-
-//namespace platform {
-//    void initLed();
-//    void turnLedOn();
-//    void turnLedOff();
-//    void toggleLed();
-//}

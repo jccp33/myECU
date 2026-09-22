@@ -3,76 +3,87 @@
 #include "time.hpp"
 #include "config.hpp"
 #include "control.hpp"
-#include "diagnostic_status.hpp"
 #include "fault_configuration.hpp"
 #include "fault_manager.hpp"
-#include "signal_store.hpp"
+#include "getaway.hpp"
+#include "mssgmanager.hpp"
 #include "signal_acquisition.hpp"
+#include <array>
 #include <cstdint>
 
-int main()
-{
-    // init objects
+namespace {
+    void showState(EcuState state) {
+        platform::turnAllLedsOff();
+        switch (state) {
+            case EcuState::INIT:
+            case EcuState::SELF_TEST:
+                platform::turnLedOn(platform::Led::BLUE);
+                break;
+            case EcuState::OPERATIONAL:
+                platform::turnLedOn(platform::Led::GREEN);
+                break;
+            case EcuState::DEGRADED:
+                platform::turnLedOn(platform::Led::YELLOW);
+                break;
+            case EcuState::SAFE_STATE:
+                platform::turnLedOn(platform::Led::RED);
+                break;
+            case EcuState::SHUTDOWN_REQ:
+            case EcuState::SHUTDOWN:
+                break;
+        }
+    }
+} // namespace
+
+int main() {
+    // init
     platform::initLeds();
     platform::initTime();
     platform::initAdc();
+    // objects
     const SystemConfig systemConfig = getSystemConfig();
-    const EvaluationRuleSet ruleSet = getEvaluationRuleSet();
-    const FaultConfigurationError configurationError = validateEvaluationRuleSet(ruleSet, systemConfig);
+    std::array<EvaluationRule, MAX_SENSOR_COUNT> ruleStorage;
+    EvaluationRuleSet ruleSet;
+    const FaultConfigurationError configurationError = buildEvaluationRuleSet(
+        systemConfig,
+        ruleStorage,
+        ruleSet
+    );
+    std::array<Message, MAX_SENSOR_COUNT> messages;
+    const MessageManager messageManager;
+    const TimestampMs initialTime = static_cast<TimestampMs>(platform::millis());
+    for (std::size_t index = 0U; index < systemConfig.sensorCount; ++index) {
+        messages[index] = messageManager.InitMessage(systemConfig.sensors[index], initialTime);
+    }
     FaultManager faultManager(ruleSet.rules, ruleSet.count);
-    SignalStore signalStore;
+    const Gateway gateway;
     Control control;
-    DiagnosticStatus diagnosticStatus = toDiagnosticStatus(configurationError);
     std::uint32_t previousTime = 0U;
     // main loop
-    while (true)
-    {
+    while (true) {
         const std::uint32_t now = platform::millis();
-        if ((now - previousTime) >= 100U) {
-            previousTime = now;
-            // read samples
-            app::acquireSignals(signalStore, static_cast<TimestampMs>(now));
-            // process faults
-            if (configurationError == FaultConfigurationError::NONE) {
-                const FaultManagerResult faultResult = faultManager.processCycle(
-                    signalStore,
-                    static_cast<TimestampMs>(now)
-                );
-                diagnosticStatus = toDiagnosticStatus(faultResult);
-            }
-            const FaultSummary faultSummary = faultManager.getSummary();
-            const EcuStateInputs inputs(
-                faultSummary,
-                true,
-                SelfTestResult::PASSED,
-                false,
-                false,
-                diagnosticStatus
+        if ((now - previousTime) < 100U) continue;
+        previousTime = now;
+        const TimestampMs cycleTime = static_cast<TimestampMs>(now);
+
+        if (configurationError == FaultConfigurationError::NONE) {
+            app::acquireSignals(
+                messages,
+                systemConfig.sensorCount,
+                messageManager,
+                cycleTime
             );
-            control.processInputs(inputs);
-            // use leds to show ECU state
-            const EcuState currState = control.getCurrentState();
-            platform::turnAllLedsOff();
-            switch(currState){
-                case EcuState::INIT:
-                case EcuState::SELF_TEST:
-                    platform::turnLedOn(platform::Led::BLUE);
-                    break;
-                case EcuState::OPERATIONAL:
-                    platform::turnLedOn(platform::Led::GREEN);
-                    break;
-                case EcuState::DEGRADED:
-                    platform::turnLedOn(platform::Led::YELLOW);
-                    break;
-                case EcuState::SAFE_STATE:
-                    platform::turnLedOn(platform::Led::RED);
-                    break;
-                case EcuState::SHUTDOWN_REQ:
-                case EcuState::SHUTDOWN:
-                    break;
+            for (std::size_t index = 0U; index < systemConfig.sensorCount; ++index) {
+                gateway.validateMessage(messages[index], cycleTime);
             }
+            control.processMessages(
+                messages,
+                systemConfig.sensorCount,
+                faultManager,
+                cycleTime
+            );
         }
+
+        showState(control.getCurrentState());
     }
-    // finish program
-    return 0;
 }

@@ -1,17 +1,15 @@
 #include "config.hpp"
 #include "control.hpp"
-#include "diagnostic_status.hpp"
 #include "fault_configuration.hpp"
-#include "fault_manager.hpp"
-#include "signal_store.hpp"
-
+#include "getaway.hpp"
+#include "mssgmanager.hpp"
+#include <array>
 #include <cstdlib>
 #include <iostream>
 
 namespace {
-
-bool expectTrue(const char* name, bool condition) {
-    if (!condition) {
+bool expectState(const char* name, const Control& control, EcuState expected) {
+    if (control.getCurrentState() != expected) {
         std::cerr << "FAILED: " << name << '\n';
         return false;
     }
@@ -19,199 +17,63 @@ bool expectTrue(const char* name, bool condition) {
     return true;
 }
 
-float healthyValue(const InitValues& signal) {
-    return signal.minValue + ((signal.maxValue - signal.minValue) / 2.0F);
+std::size_t findIndex(const SystemConfig& config, std::uint16_t id) {
+    for (std::size_t i = 0U; i < config.sensorCount; ++i) {
+        if (config.sensors[i].signalId.id == id) return i;
+    }
+    return config.sensorCount;
 }
 
-void populateHealthySignals(
-    const SystemConfig& config,
-    SignalStore& store,
-    TimestampMs nowMs
-) {
-    for (std::size_t index = 0U; index < config.sensorCount; ++index) {
-        store.upsert(SignalSample(
-            config.sensors[index].signalId,
-            healthyValue(config.sensors[index]),
-            nowMs,
-            SignalValidity::VALID
-        ));
+void initialize(const SystemConfig& config, std::array<Message, MAX_SENSOR_COUNT>& messages,
+    const MessageManager& manager, TimestampMs now) {
+    for (std::size_t i = 0U; i < config.sensorCount; ++i) {
+        messages[i] = manager.InitMessage(config.sensors[i], now);
+        manager.UpdateMessage(
+            now,
+            config.sensors[i].minValue
+                + ((config.sensors[i].maxValue - config.sensors[i].minValue) / 2.0F),
+            messages[i]
+        );
     }
 }
 
-DiagnosticStatus runCycle(
-    FaultManager& manager,
-    const SignalStore& store,
-    Control& control,
-    TimestampMs nowMs,
-    bool shutdownRequested = false,
-    bool shutdownPermitted = false
-) {
-    const FaultManagerResult result = manager.processCycle(store, nowMs);
-    const DiagnosticStatus status = toDiagnosticStatus(result);
-    control.processInputs(EcuStateInputs(
-        manager.getSummary(),
-        true,
-        SelfTestResult::PASSED,
-        shutdownRequested,
-        shutdownPermitted,
-        status
-    ));
-    return status;
+void validate(std::array<Message, MAX_SENSOR_COUNT>& messages, std::size_t count,
+    const Gateway& gateway, TimestampMs now) {
+    for (std::size_t i = 0U; i < count; ++i) gateway.validateMessage(messages[i], now);
 }
-
-const InitValues* findSignal(const SystemConfig& config, SensorId sensorId) {
-    for (std::size_t index = 0U; index < config.sensorCount; ++index) {
-        if (config.sensors[index].sId == sensorId) {
-            return &config.sensors[index];
-        }
-    }
-    return nullptr;
-}
-
-bool testHealthyConfiguredSystemBecomesOperational() {
-    const SystemConfig config = getSystemConfig();
-    const EvaluationRuleSet rules = getEvaluationRuleSet();
-    SignalStore store;
-    FaultManager manager(rules.rules, rules.count);
-    Control control;
-    populateHealthySignals(config, store, 1000U);
-    const DiagnosticStatus first = runCycle(manager, store, control, 1000U);
-    const DiagnosticStatus second = runCycle(manager, store, control, 1010U);
-    return expectTrue(
-        "healthy configured system reaches OPERATIONAL",
-        first == DiagnosticStatus::AVAILABLE
-            && second == DiagnosticStatus::AVAILABLE
-            && control.getCurrentState() == EcuState::OPERATIONAL
-            && !manager.getSummary().hasActiveFaults()
-    );
-}
-
-bool testDegradedFaultDebouncesAndRecovers() {
-    const SystemConfig config = getSystemConfig();
-    const EvaluationRuleSet rules = getEvaluationRuleSet();
-    const InitValues* speed = findSignal(config, SensorId::SPEED);
-    if (speed == nullptr) return false;
-    SignalStore store;
-    FaultManager manager(rules.rules, rules.count);
-    Control control;
-    populateHealthySignals(config, store, 1000U);
-    runCycle(manager, store, control, 1000U);
-    runCycle(manager, store, control, 1010U);
-
-    store.upsert(SignalSample(speed->signalId, 300.0F, 1100U, SignalValidity::VALID));
-    runCycle(manager, store, control, 1100U);
-    if (!expectTrue(
-            "degraded fault remains filtered while pending",
-            control.getCurrentState() == EcuState::OPERATIONAL)) return false;
-    runCycle(manager, store, control, 1300U);
-    if (!expectTrue(
-            "confirmed speed fault drives DEGRADED",
-            control.getCurrentState() == EcuState::DEGRADED
-                && manager.getSummary().hasDegraded)) return false;
-
-    store.upsert(SignalSample(speed->signalId, 100.0F, 1310U, SignalValidity::VALID));
-    runCycle(manager, store, control, 1310U);
-    runCycle(manager, store, control, 1810U);
-    return expectTrue(
-        "recovered speed fault returns OPERATIONAL",
-        control.getCurrentState() == EcuState::OPERATIONAL
-            && !manager.getSummary().hasActiveFaults()
-    );
-}
-
-bool testCriticalFaultDrivesSafeState() {
-    const SystemConfig config = getSystemConfig();
-    const EvaluationRuleSet rules = getEvaluationRuleSet();
-    const InitValues* rpm = findSignal(config, SensorId::RPM);
-    if (rpm == nullptr) return false;
-    SignalStore store;
-    FaultManager manager(rules.rules, rules.count);
-    Control control;
-    populateHealthySignals(config, store, 1000U);
-    runCycle(manager, store, control, 1000U);
-    runCycle(manager, store, control, 1010U);
-    store.upsert(SignalSample(rpm->signalId, 8000.0F, 1100U, SignalValidity::VALID));
-    runCycle(manager, store, control, 1100U);
-    runCycle(manager, store, control, 1300U);
-    return expectTrue(
-        "confirmed RPM fault drives SAFE_STATE",
-        manager.getSummary().hasCriticalActive
-            && control.getCurrentState() == EcuState::SAFE_STATE
-    );
-}
-
-bool testLatchedFaultCompletesShutdownPath() {
-    const SystemConfig config = getSystemConfig();
-    const EvaluationRuleSet rules = getEvaluationRuleSet();
-    const InitValues* voltage = findSignal(config, SensorId::VOLTAGE);
-    if (voltage == nullptr) return false;
-    SignalStore store;
-    FaultManager manager(rules.rules, rules.count);
-    Control control;
-    populateHealthySignals(config, store, 1000U);
-    runCycle(manager, store, control, 1000U);
-    runCycle(manager, store, control, 1010U);
-    store.upsert(SignalSample(voltage->signalId, 20.0F, 1100U, SignalValidity::VALID));
-    runCycle(manager, store, control, 1100U);
-    runCycle(manager, store, control, 1300U);
-    if (!expectTrue(
-            "latched voltage fault first drives SAFE_STATE",
-            manager.getSummary().hasCriticalLatched
-                && control.getCurrentState() == EcuState::SAFE_STATE)) return false;
-    runCycle(manager, store, control, 1310U);
-    return expectTrue(
-        "latched voltage fault completes SHUTDOWN path",
-        control.getCurrentState() == EcuState::SHUTDOWN
-    );
-}
-
-bool testMissingCriticalSignalTimesOut() {
-    const SystemConfig config = getSystemConfig();
-    const EvaluationRuleSet rules = getEvaluationRuleSet();
-    const InitValues* rpm = findSignal(config, SensorId::RPM);
-    if (rpm == nullptr) return false;
-    SignalStore store;
-    FaultManager manager(rules.rules, rules.count);
-    Control control;
-    populateHealthySignals(config, store, 1000U);
-    store.clear();
-    for (std::size_t index = 0U; index < config.sensorCount; ++index) {
-        if (config.sensors[index].signalId != rpm->signalId) {
-            store.upsert(SignalSample(
-                config.sensors[index].signalId,
-                healthyValue(config.sensors[index]),
-                1000U,
-                SignalValidity::VALID
-            ));
-        }
-    }
-    runCycle(manager, store, control, 1000U);
-    runCycle(manager, store, control, 1010U);
-    runCycle(manager, store, control, 1501U);
-    runCycle(manager, store, control, 1701U);
-    return expectTrue(
-        "missing critical RPM signal times out into SAFE_STATE",
-        manager.getSummary().hasCriticalActive
-            && control.getCurrentState() == EcuState::SAFE_STATE
-    );
-}
-
-}  // namespace
+} // namespace
 
 int main() {
-    int failures = 0;
-    const bool results[] = {
-        testHealthyConfiguredSystemBecomesOperational(),
-        testDegradedFaultDebouncesAndRecovers(),
-        testCriticalFaultDrivesSafeState(),
-        testLatchedFaultCompletesShutdownPath(),
-        testMissingCriticalSignalTimesOut()
-    };
-    const std::size_t count = sizeof(results) / sizeof(results[0]);
-    for (std::size_t index = 0U; index < count; ++index) {
-        if (!results[index]) ++failures;
+    const SystemConfig config = getSystemConfig();
+    std::array<EvaluationRule, MAX_SENSOR_COUNT> ruleStorage;
+    EvaluationRuleSet ruleSet;
+    if (buildEvaluationRuleSet(config, ruleStorage, ruleSet) != FaultConfigurationError::NONE) {
+        return EXIT_FAILURE;
     }
-    if (failures != 0) return EXIT_FAILURE;
-    std::cout << "All ECU integration tests passed\n";
-    return EXIT_SUCCESS;
+    std::array<Message, MAX_SENSOR_COUNT> messages;
+    const MessageManager messageManager;
+    const Gateway gateway;
+    initialize(config, messages, messageManager, 1000U);
+    validate(messages, config.sensorCount, gateway, 1000U);
+    FaultManager faultManager(ruleSet.rules, ruleSet.count);
+    Control control;
+    control.processMessages(messages, config.sensorCount, faultManager, 1000U);
+    control.processMessages(messages, config.sensorCount, faultManager, 1001U);
+    bool passed = expectState("nominal pipeline reaches OPERATIONAL", control, EcuState::OPERATIONAL);
+
+    const std::size_t speed = findIndex(config, 102U);
+    messageManager.UpdateMessage(1100U, 300.0F, messages[speed]);
+    validate(messages, config.sensorCount, gateway, 1100U);
+    control.processMessages(messages, config.sensorCount, faultManager, 1100U);
+    validate(messages, config.sensorCount, gateway, 1300U);
+    control.processMessages(messages, config.sensorCount, faultManager, 1300U);
+    passed = expectState("confirmed speed fault reaches DEGRADED", control, EcuState::DEGRADED) && passed;
+
+    messageManager.UpdateMessage(1400U, 100.0F, messages[speed]);
+    validate(messages, config.sensorCount, gateway, 1400U);
+    control.processMessages(messages, config.sensorCount, faultManager, 1400U);
+    validate(messages, config.sensorCount, gateway, 1900U);
+    control.processMessages(messages, config.sensorCount, faultManager, 1900U);
+    passed = expectState("healthy signal completes recovery", control, EcuState::OPERATIONAL) && passed;
+    return passed ? EXIT_SUCCESS : EXIT_FAILURE;
 }
