@@ -10,7 +10,7 @@ class Gateway {
         // constructor
         Gateway() = default;
         // methods
-        void validateMessage(Message &mssg, TimestampMs currentTimeMs) const;
+        GatewayResult validateMessage(Message &mssg, TimestampMs currentTimeMs) const;
 };
 
 #endif

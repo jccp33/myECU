@@ -134,4 +134,9 @@ struct FaultRecord {
         stateEntryTimeMs(entryTimeMs) {}
 };
 
+enum class GatewayResult : std::uint8_t {
+    OK = 0,
+    CLOCK_ERROR
+};
+
 #endif
