@@ -28,7 +28,7 @@ echo "=== [1/3] Building STM32 myECU control test ==="
 mkdir -p "${BUILD_DIR}"
 
 arm-none-eabi-g++ \
-  -mcpu=cortex-m3 -mthumb -std=c++11 -Os \
+  -mcpu=cortex-m3 -mthumb -std=c++11 -Og -g3 \
   -ffreestanding \
   -fno-exceptions -fno-rtti -fno-threadsafe-statics \
   -ffunction-sections -fdata-sections -nostdlib \
@@ -41,6 +41,7 @@ arm-none-eabi-g++ \
   platform/stm32/src/led.cpp \
   platform/stm32/src/time.cpp \
   platform/stm32/src/adc.cpp \
+  platform/stm32/src/rpm_input.cpp \
   platform/stm32/src/runtime.cpp \
   src/config.cpp \
   core/src/control.cpp \
@@ -53,6 +54,7 @@ arm-none-eabi-g++ \
   core/src/getaway.cpp \
   core/src/message.cpp \
   core/src/mssgmanager.cpp \
+  app/stm32/rpm_sensor.cpp \
   app/stm32/signal_acquisition.cpp \
   app/stm32/control_test.cpp \
   -T platform/stm32/linker/stm32f103c8.ld \

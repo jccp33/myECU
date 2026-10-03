@@ -8,34 +8,57 @@
 #include <chrono>
 #include <limits>
 #include <string>
+#include <cstdint>
+
+namespace {
+    struct SimulatedFault{
+        bool active;
+        bool timeout;
+    };
+    constexpr std::uint32_t FAULT_INTERVAL_CYCLES = 30U;
+    constexpr std::uint32_t FAULT_DURATION_CYCLES = 20U;
+    constexpr float FAULT_PROBABILITY = 0.50F;
+    constexpr float FAULT_TIMEOUT_PROBABILITY = 0.5F;
+    void introduceFault(MessageManager &mssgManager, Message &mssg, bool timeout){
+        if(timeout) return;
+        const float invalidValue = mssg.getMaxValue() + 1.0F;
+        mssgManager.UpdateMessage(
+            get_timestamp_ms(),
+            invalidValue,
+            mssg
+        );
+    }
+}
 
 // SIMULATION
 void initializeMessages(
-	const SystemConfig& config,
-	std::array<Message, MAX_SENSOR_COUNT>& sensorsArray,
-	MessageManager &mssgManager
+    const SystemConfig &config,
+    std::array<Message, MAX_SENSOR_COUNT>& sensorsArray,
+    MessageManager &mssgManager
 ) {
-	for (std::size_t sensor = 0; sensor < config.sensorCount; sensor++) {
-		sensorsArray[sensor] = mssgManager.InitMessage(
-			config.sensors[sensor],
-			get_timestamp_ms()
-		);
-	}
+    for (std::size_t sensor = 0; sensor < config.sensorCount; sensor++) {
+        sensorsArray[sensor] = mssgManager.InitMessage(
+            config.sensors[sensor],
+            get_timestamp_ms()
+        );
+    }
 }
+
 
 // SIMULATION
 void validateMessages(
-	std::array<Message, MAX_SENSOR_COUNT>& sensorsArray,
-	std::size_t sensorCount,
-	Gateway& gateway
+    std::array<Message, MAX_SENSOR_COUNT>& sensorsArray,
+    std::size_t sensorCount,
+    Gateway& gateway
 ) {
-	for (std::size_t sensor = 0; sensor < sensorCount; sensor++) {
-		gateway.validateMessage(
-			sensorsArray[sensor],
-			get_timestamp_ms()
-		);
-	}
+    for (std::size_t sensor = 0; sensor < sensorCount; sensor++) {
+        gateway.validateMessage(
+            sensorsArray[sensor],
+            get_timestamp_ms()
+        );
+    }
 }
+
 
 // SIMULATION
 void processMessages(
@@ -45,6 +68,7 @@ void processMessages(
     Control& control
 ) {
     const TimestampMs nowMs = get_timestamp_ms();
+
     control.processMessages(
         sensorsArray,
         sensorCount,
@@ -52,6 +76,7 @@ void processMessages(
         nowMs
     );
 }
+
 
 // PRESENTATION
 const char* getSignalStatusText(SignalStatus status) {
@@ -70,6 +95,7 @@ const char* getSignalStatusText(SignalStatus status) {
     }
     return "indefinido";
 }
+
 
 // PRESENTATION
 const char* getSignalStatusColor(const Message& message, FaultSeverity severity) {
@@ -108,6 +134,7 @@ const InitValues* findSignalMetadata(
     return 0;
 }
 
+
 // PRESENTATION
 void printMessages(
     const SystemConfig& config,
@@ -127,15 +154,16 @@ void printMessages(
             << std::setw(10) << std::fixed << std::setprecision(2)
             << message.getRawValue()
             << std::setw(6) << unit
-			<< getSignalStatusColor(
-				message,
-				metadata != 0 ? metadata->severity : FaultSeverity::NONE
-			)
+            << getSignalStatusColor(
+                message,
+                metadata != 0 ? metadata->severity : FaultSeverity::NONE
+            )
             << getSignalStatusText(message.getSignalStatus())
             << TXT_RESET
             << std::endl;
     }
 }
+
 
 // PRESENTATION
 void printControlState(const Control &control) {
@@ -179,182 +207,201 @@ void printControlState(const Control &control) {
         << std::endl;
 }
 
+
 // SIMULATION
 void userSimulation(
-	const SystemConfig &config,
-	std::array<Message, MAX_SENSOR_COUNT> &sensorsArray,
-	MessageManager &mssgManager, 
-	Gateway &gateway, 
-	FaultManager& faultManager,
-	Control &control
+    const SystemConfig &config,
+    std::array<Message, MAX_SENSOR_COUNT> &sensorsArray,
+    MessageManager &mssgManager, 
+    Gateway &gateway, 
+    FaultManager& faultManager,
+    Control &control
 ) {
-	if (config.sensorCount > sensorsArray.size()) {
-		return;
-	}
-	// init sensors
-	initializeMessages(config, sensorsArray, mssgManager);
-	// main loop
+    if (config.sensorCount > sensorsArray.size()) {
+        return;
+    }
+    // init sensors
+    initializeMessages(config, sensorsArray, mssgManager);
+    // main loop
     while (true) {
-		// clean screen
-		cleanScreen();
-		// show menu
-		short option;
-		std::cout << "1. Ingresar valores de senales" << std::endl;
-		std::cout << "2. Mostrar estado del sistema" << std::endl;
-		std::cout << "3. Salir" << std::endl;
-		std::cout << "Selecciona una opcion: ";
-		std::cin >> option;
-		// invalid option
-		if (option<1 || option>3) {
-			std::cout << TXT_RED << "Opcion invalida." << TXT_RESET << std::endl;
-			std::cout << std::endl << "Presione enter para continuar ...";
-			std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-			std::cin.get();
-			continue;
-		}
-		if (option == 1) {
-			std::cout << std::endl;
-			// option 1 : read signals
-			for (std::size_t mssg = 0; mssg < config.sensorCount; mssg++) {
-				std::string value_str;
-				float value;
-				const InitValues* metadata = findSignalMetadata(
-					config,
-					sensorsArray[mssg].getSignalId()
-				);
-				const char* name = metadata != 0 ? metadata->name : "Desconocida";
-				const char* unit = metadata != 0 ? metadata->unit : "";
-				// user message
-				std::string user_mssg = std::string("Introduce valor de ")
-					+ name
-					+ " (" + unit + "):";
-				if (user_mssg.size() < USER_MESSAGE_WIDTH) {
-					user_mssg.append(USER_MESSAGE_WIDTH - user_mssg.size(), ' ');
-				}
-				// show user message and read value
-				std::cout << user_mssg;
-				std::cin >> value_str;
-				if(isNumber(value_str)) value = std::stof(value_str);
-				else value = 0.0f;
-				mssgManager.UpdateMessage(
-					get_timestamp_ms(),
-					value,
-					sensorsArray[mssg]
-				);
-			}
-			// validate & process
-			validateMessages(sensorsArray, config.sensorCount, gateway);
-			processMessages(
-				sensorsArray,
-				config.sensorCount,
-				faultManager,
-				control
-			);
-		} else if (option == 2) {
-			// option 2 : show state
-			std::cout << std::endl;
+        // clean screen
+        cleanScreen();
+        // show menu
+        short option;
+        std::cout << "1. Ingresar valores de senales" << std::endl;
+        std::cout << "2. Mostrar estado del sistema" << std::endl;
+        std::cout << "3. Salir" << std::endl;
+        std::cout << "Selecciona una opcion: ";
+        std::cin >> option;
+        // invalid option
+        if (option<1 || option>3) {
+            std::cout << TXT_RED << "Opcion invalida." << TXT_RESET << std::endl;
+            std::cout << std::endl << "Presione enter para continuar ...";
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+            std::cin.get();
+            continue;
+        }
+        if (option == 1) {
+            std::cout << std::endl;
+            // option 1 : read signals
+            for (std::size_t mssg = 0; mssg < config.sensorCount; mssg++) {
+                std::string value_str;
+                float value;
+                const InitValues* metadata = findSignalMetadata(
+                    config,
+                    sensorsArray[mssg].getSignalId()
+                );
+                const char* name = metadata != 0 ? metadata->name : "Desconocida";
+                const char* unit = metadata != 0 ? metadata->unit : "";
+                // user message
+                std::string user_mssg = std::string("Introduce valor de ")
+                    + name
+                    + " (" + unit + "):";
+                if (user_mssg.size() < USER_MESSAGE_WIDTH) {
+                    user_mssg.append(USER_MESSAGE_WIDTH - user_mssg.size(), ' ');
+                }
+                // show user message and read value
+                std::cout << user_mssg;
+                std::cin >> value_str;
+                if(isNumber(value_str)) value = std::stof(value_str);
+                else value = 0.0f;
+                mssgManager.UpdateMessage(
+                    get_timestamp_ms(),
+                    value,
+                    sensorsArray[mssg]
+                );
+            }
+            // validate & process
+            validateMessages(sensorsArray, config.sensorCount, gateway);
+            processMessages(
+                sensorsArray,
+                config.sensorCount,
+                faultManager,
+                control
+            );
+        } else if (option == 2) {
+            // option 2 : show state
+            std::cout << std::endl;
             printControlState(control);
             std::cout << std::endl;
-			printMessages(config, sensorsArray);
-			std::cout << std::endl << "Presione enter para continuar ...";
-			std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-			std::cin.get();
-		} else if (option == 3) {
-			// option 3 : finish
-			return;
-		} else {
-			// invalid option
-			std::cout << TXT_RED << "Opcion invalida." << TXT_RESET << std::endl;
-		}
-	}
+            printMessages(config, sensorsArray);
+            std::cout << std::endl << "Presione enter para continuar ...";
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+            std::cin.get();
+
+        } else if (option == 3) {
+            // option 3 : finish
+            return;
+        } else {
+            // invalid option
+            std::cout << TXT_RED << "Opcion invalida." << TXT_RESET << std::endl;
+        }
+    }
 }
+
 
 // SIMULATION
 void randomSimulation(
-	const SystemConfig &config,
-	std::array<Message, MAX_SENSOR_COUNT> &sensorsArray,
-	MessageManager &mssgManager, 
-	Gateway &gateway, 
-	FaultManager& faultManager,
-	Control &control
+    const SystemConfig &config,
+    std::array<Message, MAX_SENSOR_COUNT> &sensorsArray,
+    MessageManager &mssgManager, 
+    Gateway &gateway, 
+    FaultManager& faultManager,
+    Control &control
 ) {
-	if (config.sensorCount > sensorsArray.size()) {
-		return;
-	}
-	// init sensors
-	initializeMessages(config, sensorsArray, mssgManager);
-	bool isBraked = false;
-	bool shutdownRequested = false;
-	configureTerminal(true);
-	// main loop
-	while (true) {
-		// clean screen and print states
-		cleanScreen();
-		std::cout << "Para simular freno presione:   'B' o 'b'" << std::endl;
+    if (config.sensorCount > sensorsArray.size()) {
+        return;
+    }
+    // init sensors
+    initializeMessages(config, sensorsArray, mssgManager);
+    bool isBraked = false;
+    bool shutdownRequested = false;
+    std::uint32_t simulationCycle = 0U;
+    configureTerminal(true);
+    std::array<SimulatedFault, MAX_SENSOR_COUNT> simulatedFaults{};
+    // main loop
+    while (true) {
+        // clean screen and print states
+        cleanScreen();
+        std::cout << "Para simular freno presione:   'B' o 'b'" << std::endl;
         std::cout << "Para simular apagado presione: 'S' o 's'" << std::endl;
-		std::cout << std::endl;
-		printControlState(control);
-		std::cout << std::endl;
-		printMessages(config, sensorsArray);
-		std::cout << std::endl;
-		// update values
-		char command = 0;
-		KeyPressed keypressed = detectKey(command);
-		if (keypressed.pressed && (keypressed.key == 'b' || keypressed.key == 'B')) {
-			isBraked = !isBraked;
-		} else if (keypressed.pressed && (keypressed.key == 's' || keypressed.key == 'S')) {
-			shutdownRequested = true;
-		}
-		// update values
-		for (std::size_t sensor = 0; sensor < config.sensorCount; sensor++) {
-			const SensorId sensorId = getSensorId(
-				config.sensors[sensor].signalId
-			);
-			if(sensorId != SensorId::BRAKE && sensorId != SensorId::SHUT_REQ){
-				const float val = simulateSensorValue(
-					sensorId,
-					sensorsArray[sensor].getRawValue(),
-					randomFloat(-1.0F, 1.0F)
-				);
-				mssgManager.UpdateMessage(
-					get_timestamp_ms(),
-					val,
-					sensorsArray[sensor]
-				);
-			}
-			if(sensorId == SensorId::BRAKE){
-				mssgManager.UpdateMessage(
-					get_timestamp_ms(),
-					isBraked ? 1.0f : 0.0f,
-					sensorsArray[sensor]
-				);
-			}
-			if(sensorId == SensorId::SHUT_REQ){
-				mssgManager.UpdateMessage(
-					get_timestamp_ms(),
-					shutdownRequested ? 1.0f : 0.0f,
-					sensorsArray[sensor]
-				);
-			}
-		}
-		// validate sensors
-		validateMessages(sensorsArray, config.sensorCount, gateway);
-		processMessages(
-			sensorsArray,
-			config.sensorCount,
-			faultManager,
-			control
-		);
-		// if shutdown request
-		if (control.getCurrentState() == EcuState::SHUTDOWN) {
-			cleanScreen();
-			printControlState(control);
-			std::cout << std::endl;
-			printMessages(config, sensorsArray);
-			configureTerminal(false);
+        std::cout << std::endl;
+        printControlState(control);
+        std::cout << std::endl;
+        printMessages(config, sensorsArray);
+        std::cout << std::endl;
+        // update values
+        char command = 0;
+        KeyPressed keypressed = detectKey(command);
+        if (keypressed.pressed && (keypressed.key == 'b' || keypressed.key == 'B')) {
+            isBraked = !isBraked;
+        } else if (keypressed.pressed && (keypressed.key == 's' || keypressed.key == 'S')) {
+            shutdownRequested = true;
+        }
+        const std::uint32_t cycleInFaultPeriod = simulationCycle % FAULT_INTERVAL_CYCLES;
+        const bool newFault = simulationCycle >= FAULT_INTERVAL_CYCLES && cycleInFaultPeriod == 0U;
+        const bool faultWindowActive = simulationCycle >= FAULT_INTERVAL_CYCLES && cycleInFaultPeriod < FAULT_DURATION_CYCLES;
+        if(newFault){
+            for (std::size_t sensor = 2U; sensor<config.sensorCount; sensor++){
+                simulatedFaults[sensor].active = randomFloat(0.0F, 1.0F) < FAULT_PROBABILITY;
+                if(simulatedFaults[sensor].active){
+                    simulatedFaults[sensor].timeout = randomFloat(0.0F, 1.0F) < FAULT_TIMEOUT_PROBABILITY;
+                }
+            }
+        }
+        // update values
+        for (std::size_t sensor = 0; sensor < config.sensorCount; sensor++) {
+            const SensorId sensorId = getSensorId(config.sensors[sensor].signalId);
+            if(faultWindowActive && simulatedFaults[sensor].active){
+                introduceFault(mssgManager, sensorsArray[sensor], simulatedFaults[sensor].timeout);
+                continue;
+            }
+            if(sensorId != SensorId::BRAKE && sensorId != SensorId::SHUT_REQ){
+                const float val = simulateSensorValue(
+                    sensorId,
+                    sensorsArray[sensor].getRawValue(),
+                    randomFloat(-1.0F, 1.0F)
+                );
+                mssgManager.UpdateMessage(
+                    get_timestamp_ms(),
+                    val,
+                    sensorsArray[sensor]
+                );
+            }
+            if(sensorId == SensorId::BRAKE){
+                mssgManager.UpdateMessage(
+                    get_timestamp_ms(),
+                    isBraked ? 1.0f : 0.0f,
+                    sensorsArray[sensor]
+                );
+            }
+            if(sensorId == SensorId::SHUT_REQ){
+                mssgManager.UpdateMessage(
+                    get_timestamp_ms(),
+                    shutdownRequested ? 1.0f : 0.0f,
+                    sensorsArray[sensor]
+                );
+            }
+        }
+        // validate sensors
+        validateMessages(sensorsArray, config.sensorCount, gateway);
+        processMessages(
+            sensorsArray,
+            config.sensorCount,
+            faultManager,
+            control
+        );
+        // if shutdown request
+        if (control.getCurrentState() == EcuState::SHUTDOWN) {
+            cleanScreen();
+            printControlState(control);
             std::cout << std::endl;
-			return;
-		}
-		std::this_thread::sleep_for(std::chrono::milliseconds(SPEED_VALUE));
-	}
+            printMessages(config, sensorsArray);
+            configureTerminal(false);
+            std::cout << std::endl;
+            return;
+        }
+        ++simulationCycle;
+        std::this_thread::sleep_for(std::chrono::milliseconds(SPEED_VALUE));
+    }
 }

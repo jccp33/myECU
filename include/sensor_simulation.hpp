@@ -14,6 +14,7 @@ enum class SensorId : uint8_t {
     MAP,
     MAF,
     O2,
+    OIL_PRESSURE,
     UNDEFINED
 };
 

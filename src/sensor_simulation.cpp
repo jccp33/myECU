@@ -40,6 +40,7 @@ SensorId getSensorId(const SignalId& signalId) {
         case 107U: return SensorId::MAP;
         case 108U: return SensorId::MAF;
         case 109U: return SensorId::O2;
+        case 110U: return SensorId::OIL_PRESSURE;
         default:   return SensorId::UNDEFINED;
     }
 }
@@ -66,6 +67,8 @@ float simulateSensorValue(
             return evolveValue(currentValue, 25.0F, 0.08F, 1.0F, 2.0F, 100.0F, normalizedNoise);
         case SensorId::O2:
             return evolveValue(currentValue, 0.45F, 0.15F, 0.08F, 0.1F, 0.9F, normalizedNoise);
+        case SensorId::OIL_PRESSURE:
+            return evolveValue(currentValue, 3.0F, 0.8F, 0.10F, 1.0F, 6.0F, normalizedNoise);
         case SensorId::BRAKE:
         case SensorId::SHUT_REQ:
         case SensorId::UNDEFINED:

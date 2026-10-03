@@ -1,7 +1,7 @@
 #include "config.hpp"
 
 namespace {
-    constexpr std::size_t CONFIGURED_SENSOR_COUNT = 10U;
+    constexpr std::size_t CONFIGURED_SENSOR_COUNT = 11U;
     static_assert(
         CONFIGURED_SENSOR_COUNT <= MAX_SENSOR_COUNT,
         "Configured sensors exceed fixed ECU capacity"
@@ -164,6 +164,22 @@ SystemConfig getSystemConfig() {
             0.1f,
             0.9f,
             FaultSeverity::DEGRADED,
+            500U,
+            200U,
+            500U,
+            FaultLatching::RECOVERABLE,
+            false,
+            false,
+            0.0f
+        },
+        {
+            SignalId(1U, 1U, 110U, 0U),
+            "Presion de Aceite",
+            "bar",
+            3.0f,
+            1.0f,
+            6.0f,
+            FaultSeverity::CRITICAL,
             500U,
             200U,
             500U,

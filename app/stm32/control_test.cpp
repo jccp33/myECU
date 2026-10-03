@@ -1,4 +1,5 @@
 #include "adc.hpp"
+#include "rpm_input.hpp"
 #include "time.hpp"
 #include "config.hpp"
 #include "control.hpp"
@@ -21,11 +22,15 @@ volatile float g_temperatureEstimatedC = 0.0F;
 volatile std::uint16_t g_mapAdcRaw = 0U;
 volatile float g_mapVoltage = 0.0F;
 volatile std::uint8_t g_mapSignalStatus = 0U;
+volatile float g_rpm = 0.0F;
+volatile std::uint8_t g_rpmSignalStatus = 0U;
+volatile std::uint8_t g_rpmFaultState = 0U;
 
 namespace {
     const SignalId TPS_SIGNAL_ID(1U, 1U, 106U, 0U);
     const SignalId TEMPERATURE_SIGNAL_ID(1U, 1U, 104U, 0U);
     const SignalId MAP_SIGNAL_ID(1U, 1U, 107U, 0U);
+    const SignalId RPM_SIGNAL_ID(1U, 1U, 103U, 0U);
     
     Message* findMessage(
         std::array<Message, MAX_SENSOR_COUNT>& messages,
@@ -47,9 +52,10 @@ namespace {
         for (std::size_t index = 0U; index < config.sensorCount; ++index) {
             const SignalId &id = messages[index].getSignalId();
             if (
-                id == TPS_SIGNAL_ID || 
-                id == TEMPERATURE_SIGNAL_ID || 
-                id == MAP_SIGNAL_ID
+                id == TPS_SIGNAL_ID 
+                || id == TEMPERATURE_SIGNAL_ID 
+                || id == MAP_SIGNAL_ID 
+                //|| id == RPM_SIGNAL_ID 
             ){
                 continue;
             }
@@ -88,6 +94,7 @@ int main() {
     platform::initLeds();
     platform::initTime();
     platform::initAdc();
+    platform::initRpmInput();
     // variables and objects
     const SystemConfig systemConfig = getSystemConfig();
     std::array<EvaluationRule, MAX_SENSOR_COUNT> ruleStorage;
@@ -157,6 +164,15 @@ int main() {
             g_mapVoltage = map->getRawValue();
             g_mapSignalStatus = static_cast<std::uint8_t>(map->getSignalStatus());
         }
+        const Message* const rpm = findMessage(
+            messages,
+            systemConfig.sensorCount,
+            RPM_SIGNAL_ID
+        );
+        if (rpm != nullptr) {
+            g_rpm = rpm->getRawValue();
+            g_rpmSignalStatus = static_cast<std::uint8_t>(rpm->getSignalStatus());
+        }
 
         const FaultSummary faultSummary = faultManager.getSummary();
         g_hasDegraded = faultSummary.hasDegraded;
@@ -165,6 +181,11 @@ int main() {
         if (tpsFaultRecord != nullptr) {
             g_tpsFaultState = static_cast<std::uint8_t>(tpsFaultRecord->state);
         }
+        const FaultRecord* const rpmFaultRecord = faultManager.getRecord(RPM_SIGNAL_ID);
+        if (rpmFaultRecord != nullptr) {
+            g_rpmFaultState = static_cast<std::uint8_t>(rpmFaultRecord->state);
+        }
+
         g_ecuState = static_cast<std::uint8_t>(control.getCurrentState());
         showState(control.getCurrentState());
     }

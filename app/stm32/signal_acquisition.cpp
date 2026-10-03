@@ -1,5 +1,7 @@
 #include "signal_acquisition.hpp"
 #include "adc.hpp"
+#include "rpm_input.hpp"
+#include "rpm_sensor.hpp"
 #include <cstdint>
 
 namespace app {
@@ -16,6 +18,10 @@ namespace app {
         const SignalId TPS_SIGNAL_ID(1U, 1U, 106U, 0U);
         const SignalId TEMPERATURE_SIGNAL_ID(1U, 1U, 104U, 0U);
         const SignalId MAP_SIGNAL_ID(1U, 1U, 107U, 0U);
+        const SignalId RPM_SIGNAL_ID(1U, 1U, 103U, 0U);
+        // RPM auxiliar variables
+        const RpmSensorConfig RPM_SENSOR_CONFIG {1U, 7000U};
+        const RpmSensor RPM_SENSOR{RPM_SENSOR_CONFIG};
         
         Message *findMessage(
             std::array<Message, MAX_SENSOR_COUNT> &messages,
@@ -105,6 +111,21 @@ namespace app {
             const float voltage = adcToVoltage(adcRaw);
             messageManager.UpdateMessage(now, voltage, *message);
         }
+
+        void acquireRpm(
+            std::array<Message, MAX_SENSOR_COUNT> &messages,
+            std::size_t messageCount,
+            const MessageManager &messageManager,
+            TimestampMs now
+        ) {
+            std::uint32_t periodUs = 0U;
+            if (!platform::readRpmPeriodUs(periodUs)) return;
+            float rpm = 0.0F;
+            if (!RPM_SENSOR.calculateRpm(periodUs, rpm)) return;
+            Message* const message = findMessage(messages, messageCount, RPM_SIGNAL_ID);
+            if (message == nullptr) return;
+            messageManager.UpdateMessage(now, rpm, *message);
+        }
     } // namespace
 
     void acquireSignals(
@@ -116,6 +137,7 @@ namespace app {
         acquireTps(messages, messageCount, messageManager, now);
         acquireTemperature(messages, messageCount, messageManager, now);
         acquireMap(messages, messageCount, messageManager, now);
+        acquireRpm(messages, messageCount, messageManager, now);
     }
 
 } // namespace app

@@ -13,3 +13,6 @@ multim:     0V              3.26V
 (gnd):      $1 = 1417       $2 = 1430
 =============================================
 
+GDB - print variables: 
+    (gdb) printf "PeriodCount=%u | PeriodUs=%u | RPM=%.2f | Valid=%u | Rejected=%u\n", 
+        g_rpmPeriodCount, g_rpmPeriodUs, g_rpm, g_validRpmCount, g_rejectedRpmCount

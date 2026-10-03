@@ -141,6 +141,15 @@ add_library(
 )
 
 
+# Mantener la misma salida de biblioteca que el Makefile.
+# La expresion evita subdirectorios adicionales por configuracion.
+set_target_properties(
+    ecu_core
+    PROPERTIES
+        ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/build/$<0:>"
+)
+
+
 target_compile_features(
     ecu_core
     PUBLIC
@@ -175,6 +184,15 @@ if(BUILD_ECU_SIMULATOR)
         src/simulations.cpp
         src/sensor_simulation.cpp
         src/linux_platform.cpp
+    )
+
+
+    # Mantener el target existente y generar ./ecu como el Makefile.
+    set_target_properties(
+        ecu_simulator
+        PROPERTIES
+            OUTPUT_NAME ecu
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/$<0:>"
     )
 
 
