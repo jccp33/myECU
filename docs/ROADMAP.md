@@ -1,5 +1,9 @@
 # Roadmap
 
+Estado documental revisado el 6 de octubre de 2026. Los hitos físicos
+completados conservan su evidencia histórica; una compilación reciente
+no demuestra validación del firmware completo en hardware.
+
 ## Completado: prototipo funcional portable
 
 - [x] Tipos genéricos de señal, error y severidad.
@@ -13,7 +17,11 @@
 - [x] Integración con simulación manual y automática.
 - [x] Modelo gradual de señales.
 - [x] CMake, Makefile, perfil embebido y pruebas.
-- [x] Verificación host con ASan y UBSan.
+- [x] Verificación host con ASan y UBSan (evidencia previa).
+- [x] Doce ejecutables de prueba host vigentes pasan mediante script dedicado.
+- [x] Logger de transiciones y fallos activos en simulación automática.
+- [ ] Integrar pruebas host en CMake/CTest o Make.
+- [ ] Validar automáticamente logger y errores de E/S; identificar sesiones.
 
 ## Plataforma embebida STM32 — en progreso
 
@@ -37,6 +45,10 @@
 - [x] Integrar temperatura NTC mediante PA1/ADC1 con conversión por modelo Beta.
 - [x] Integrar adquisición MAP mediante PA2/ADC1 en el firmware STM32.
 - [ ] Validar físicamente MAP y documentar su propagación hasta `EcuState`.
+- [x] Implementar captura RPM en TIM3, conversor y prueba aislada.
+- [ ] Cerrar inicialización global del conversor RPM y refresco nominal en `control_test`.
+- [ ] Validar físicamente RPM, PPR, pérdida de pulsos y recuperación.
+- [ ] Alinear el alcance de `app/stm32/main.cpp` con adquisición/configuración.
 - [ ] Definir adquisición independiente de CAN/ADC/SENT.
 - [ ] Agregar watchdog.
 - [ ] Medir WCET del ciclo real.
@@ -45,6 +57,12 @@
 - [ ] Validar wrap-around y fuente monotónica de tiempo.
 
 ## Diagnóstico y seguridad
+
+- [ ] Rechazar `NaN` y validar límites físicos de configuración.
+- [ ] Revisar solicitud/permiso de apagado con señales vencidas.
+- [ ] Propagar conteo inválido de mensajes al estado seguro.
+- [ ] Revisar regresión de reloj respecto a la última evaluación.
+- [ ] Implementar self-test real; actualmente `Control` suministra `PASSED`.
 
 - [ ] Definir y persistir DTC y freeze-frames.
 - [ ] Integrar servicios UDS necesarios.

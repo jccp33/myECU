@@ -5,8 +5,9 @@
 Este documento deja reproducible la implementación física y de software
 actualmente utilizada por **myECU** sobre una **STM32F103C8T6 Blue
 Pill**. Describe el pipeline vigente basado en `Message`, el hardware ya
-validado y las tres entradas físicas actualmente integradas: TPS,
-temperatura NTC y MAP.
+validado y las entradas ADC integradas: TPS, temperatura NTC y MAP.
+La captura RPM está implementada, pero su integración física con el control
+sigue pendiente. Estado documental: 6 de octubre de 2026.
 
 ## 1. Plataforma
 
@@ -37,11 +38,13 @@ app/stm32/
 ├── main.cpp
 ├── control_test.cpp
 ├── signal_acquisition.hpp
-└── signal_acquisition.cpp
+├── signal_acquisition.cpp
+├── rpm_sensor.{hpp,cpp}
+└── rpm_input_test.cpp
 
 platform/stm32/
-├── include/{adc.hpp,led.hpp,time.hpp}
-├── src/{adc.cpp,led.cpp,time.cpp,runtime.cpp}
+├── include/{adc.hpp,led.hpp,time.hpp,rpm_input.hpp}
+├── src/{adc.cpp,led.cpp,time.cpp,rpm_input.cpp,runtime.cpp}
 ├── startup/startup_stm32f103.cpp
 └── linker/stm32f103c8.ld
 ```
@@ -201,7 +204,7 @@ Configuración:
 ``` text
 SignalId:      1.1.104.0
 Señal:         Temperatura
-Rango:         -20...30 °C
+Rango:         -20...130 °C
 Severidad:     CRITICAL
 Timeout:       500 ms
 Confirmación:  200 ms
@@ -209,8 +212,9 @@ Recuperación:  500 ms
 Latching:      RECOVERABLE
 ```
 
-La cadena física de temperatura está validada y se considera terminada
-para continuar con otra señal.
+Las sesiones previas registraron respuesta física del NTC. La calibración,
+la exactitud del modelo Beta y los escenarios diagnósticos con el rango
+actual de -20 a 130 °C siguen pendientes de validación completa.
 
 ## 7.1. MAP --- SignalId 107
 
@@ -266,12 +270,13 @@ limitadora de 220 Ω. Ya se validaron físicamente `OPERATIONAL → verde` y
     101 Solicitud de freno       0--1          WARNING
     102 Velocidad                0--220 km/h   DEGRADED
     103 RPM                      0--7000 rpm   CRITICAL
-    104 Temperatura              -20--30 °C    CRITICAL
+    104 Temperatura              -20--130 °C    CRITICAL
     105 Voltaje                  8--16 V       CRITICAL
     106 TPS                      0.5--4.8 V    DEGRADED
     107 MAP / Presión absoluta   0.5--4.7 V    DEGRADED
     108 MAF                      2--120 g/s    DEGRADED
     109 Oxígeno                  0.1--0.9 V    DEGRADED
+    110 Presión de aceite        1--6 bar      CRITICAL
 
 Entradas físicas STM32 actuales:
 
@@ -285,19 +290,37 @@ Entradas físicas STM32 actuales:
 
 `app/stm32/control_test.cpp` es el firmware recomendado para incorporar
 sensores uno por uno. `refreshNominalSignals()` actualiza con valores
-nominales las siete señales que aún no tienen hardware, excepto TPS,
-temperatura y MAP. Así una transición de ECU puede atribuirse a la entrada
-física bajo prueba y no a timeouts ajenos.
+nominales ocho señales, incluida RPM; excluye TPS, temperatura y MAP.
+Esto permite aislar las entradas ADC de timeouts ajenos, pero enmascara
+la pérdida de pulsos RPM. La adquisición física se ejecuta después del
+refresco nominal.
 
 El orden de cada ciclo de 100 ms es:
 
 ``` text
-refrescar siete señales nominales
-→ adquirir TPS, temperatura y MAP
+refrescar ocho señales nominales (incluida RPM)
+→ adquirir TPS, temperatura, MAP e intentar adquirir RPM
 → validar rango/timeout con Gateway
 → procesar fallos y estado global
 → mostrar EcuState mediante LEDs
 ```
+
+### RPM y aplicación principal
+
+RPM utiliza PA6/TIM3_CH1, captura de período y conversión mediante `RpmSensor`
+con un pulso por revolución y máximo provisional de 7000 RPM.
+`control_test` llama a `initRpmInput()`, pero el objeto global `RPM_SENSOR`
+necesita construcción dinámica y el startup no ejecuta inicializadores C++.
+Debe cerrarse ese punto y eliminarse el enmascaramiento nominal antes de
+validar pérdida de pulsos y recuperación. `rpm_input_test.cpp` crea su
+conversor dentro de `main`; su script permite una prueba aislada.
+
+`app/stm32/main.cpp` usa el mismo pipeline, pero no inicializa RPM ni renueva
+las señales sin adquisición. Con la configuración actual, estas vencen y el
+voltaje crítico latched conduce a apagado. No es el archivo compilado por
+`stm32_control_test.sh`.
+
+El logger de archivos pertenece al simulador Linux y no se compila para STM32.
 
 ## 11. Compilación y programación
 
@@ -307,7 +330,7 @@ Ejecutar:
 ./scripts/stm32_control_test.sh
 ```
 
-El script compila Cortex-M3 con C++11/`-Os`, modo freestanding, sin
+El script compila Cortex-M3 con C++11/`-Og -g3`, modo freestanding, sin
 excepciones ni RTTI, define `MYECU_MAX_SENSOR_COUNT=16`, enlaza con
 `stm32f103c8.ld`, genera ELF/BIN/MAP y programa mediante `st-flash`.
 
@@ -338,15 +361,18 @@ Dirección Flash:
     multímetro que no exceda 3.3 V.
 7.  Ejecutar `./scripts/stm32_control_test.sh`.
 8.  Mantener TPS y MAP por encima de 0.5 V y la temperatura entre -20 y
-    30 °C; verificar `OPERATIONAL`/verde.
+    130 °C; verificar `OPERATIONAL`/verde.
 9.  Llevar TPS por debajo de 0.5 V durante más de 200 ms →
     DEGRADED/amarillo.
 10. Restaurar TPS durante más de 500 ms y verificar recuperación.
 11. Repetir el caso degradado llevando MAP por debajo de 0.5 V.
 12. Verificar que la temperatura estimada cambia coherentemente al
     variar físicamente la temperatura del NTC.
-13. Superar 30 °C durante más de 200 ms y verificar `SAFE_STATE`/rojo;
-    restaurar el rango durante más de 500 ms y verificar recuperación.
+13. Para validar un fallo de temperatura, utilizar una fuente de prueba
+    controlada que produzca una estimación fuera de -20...130 °C y mantenerla
+    más de 200 ms; verificar `SAFE_STATE` y recuperación tras volver al rango.
+    Calentar por encima de 30 °C ya no supera el umbral actual. Una lectura
+    ADC eléctricamente inválida prueba timeout, no directamente fuera de rango.
 
 ## 13. Estado alcanzado
 
@@ -371,8 +397,9 @@ Blue Pill STM32F103C8T6
 ## 14. Próximos pasos
 
 - Validar físicamente MAP a través de PA2 y documentar mediciones.
-- Calibrar el modelo NTC y justificar el límite superior actual de 30 °C.
+- Calibrar el modelo NTC y validar el rango actual de -20 a 130 °C.
 - Definir acondicionamiento para señales que excedan 3.3 V.
-- Incorporar velocidad/RPM mediante temporizadores o captura de pulsos.
+- Cerrar la integración física RPM (constructor, refresco nominal, PPR y timeout).
+- Incorporar adquisición de velocidad y definir el alcance de `main.cpp`.
 - Añadir pruebas de timeout, simultaneidad y recuperación para las tres
   entradas físicas.

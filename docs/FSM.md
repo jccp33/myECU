@@ -16,6 +16,7 @@ stateDiagram-v2
     SELF_TEST --> SELF_TEST: prueba pendiente
     SELF_TEST --> SAFE_STATE: prueba fallida
     SELF_TEST --> SAFE_STATE: diagnóstico/fallo crítico
+    SELF_TEST --> SHUTDOWN_REQ: solicitud con prueba superada
     SELF_TEST --> DEGRADED: fallo degradado
     SELF_TEST --> OPERATIONAL: prueba superada y sano
 
@@ -59,12 +60,32 @@ stateDiagram-v2
 | `DEGRADED` | recuperación completa | `OPERATIONAL` |
 | `OPERATIONAL/DEGRADED` | crítico | `SAFE_STATE` |
 | `SAFE_STATE` | crítico latched | `SHUTDOWN` |
-| estado no terminal | solicitud normal | `SHUTDOWN_REQ` |
+| `INIT` | solicitud (prioridad sobre inicialización completa) | `SHUTDOWN_REQ` |
+| `SELF_TEST` | prueba superada, sin crítico/diagnóstico y solicitud | `SHUTDOWN_REQ` |
+| `OPERATIONAL/DEGRADED` | solicitud sin crítico/diagnóstico | `SHUTDOWN_REQ` |
+| `SAFE_STATE` | solicitud sin crítico latched | `SHUTDOWN_REQ` |
 | `SHUTDOWN_REQ` | permiso seguro | `SHUTDOWN` |
 
 La implementación realiza una transición por ciclo. Por ejemplo, un latched
 detectado en operación produce primero `SAFE_STATE` y en el ciclo siguiente
 `SHUTDOWN`.
+
+### Prioridades y adaptación actual
+
+En `SELF_TEST`, una prueba pendiente mantiene el estado; una fallida lleva a
+seguro. Después de aprobarla, diagnóstico y crítico preceden a solicitud,
+degradado y operación. `OPERATIONAL` y `DEGRADED` aplican ese mismo orden.
+En `SAFE_STATE`, crítico latched precede a solicitud, diagnóstico, crítico
+recuperable, degradado y operación. `SHUTDOWN_REQ` solo espera permiso.
+
+`Control::processMessages()` suministra inicialización completa y self-test
+aprobado en cada llamada. El estado `SELF_TEST` no implica todavía una
+comprobación física. `Control::reset()` reinicia la FSM global; limpiar los
+registros requiere también el reset de `FaultManager`.
+
+El logger del modo automático observa las transiciones después del ciclo;
+no altera la FSM ni registra todos los pasos internos de cada fallo.
+Véase [LOGGING.md](LOGGING.md).
 
 ## FSM de cada fallo
 

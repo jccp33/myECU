@@ -81,8 +81,10 @@ respecto del alcance funcional y de POO descrito en el hito.
 - `control_test` fue compilado, grabado y verificado en un STM32F103 mediante
   ST-Link.
 - La adquisición física actual utiliza ADC1 para TPS, temperatura NTC y MAP.
+- El modo automático registra transiciones y fallos activos en `ecu.log`
+  mediante `Logger`, sin introducir dependencias en el CORE.
 
-La purga arquitectónica y la validación física completa continúan en progreso.
+La revisión arquitectónica y la validación física completa continúan en progreso.
 En particular, quedan pendientes una validación exhaustiva de entradas
 analógicas, comportamiento temporal y escenarios de fallo sobre hardware.
 
@@ -317,7 +319,7 @@ También se puede repetir un ejecutable ya construido:
 
 Se verificaron los 12 ejecutables de la suite en host. Esto no equivale a
 validación física de STM32 ni a pruebas de la interfaz de consola. Las pruebas
-actuales tampoco cubren toda la integración RPM ni la duración de ventanas
+actuales tampoco cubren el logger, toda la integración RPM ni la duración de ventanas
 dentro del bucle interactivo. `make sanitize` construye el simulador con
 ASan/UBSan; no ejecuta automáticamente esta suite.
 
@@ -350,6 +352,14 @@ En cada selección, cada señal analógica tiene una probabilidad de falla del
 50 % y, si se selecciona, un 50 % de probabilidad de timeout frente a fuera
 de rango. El tipo se mantiene durante 20 ciclos (unos 10 s); quedan 10 ciclos
 (unos 5 s) sin inyección antes de la siguiente selección.
+
+El modo automático también agrega eventos a `ecu.log` en el directorio de
+trabajo. Registra cada cambio de `EcuState` y, al entrar en `DEGRADED` o
+`SAFE_STATE`, los fallos en `CONFIRMED`, `RECOVERING` o `LATCHED` con su
+último valor. El modo manual no genera ese registro. El archivo conserva
+ejecuciones anteriores, usa timestamps del reloj monotónico y está ignorado
+por Git. Consulte [Registro de eventos](docs/LOGGING.md) para el formato,
+la interfaz y las limitaciones.
 
 En timeout no se actualiza el mensaje; en rango se escribe `maxValue + 1`.
 Al terminar la ventana se retoma la evolución normal y el diagnóstico aplica
@@ -407,6 +417,14 @@ La integración en `control_test` **todavía no está validada**:
 
 La prueba RPM independiente crea el objeto dentro de `main` y compila, pero
 eso no demuestra funcionamiento físico ni cierra la integración con `Control`.
+
+### Aplicación principal STM32
+
+`app/stm32/main.cpp` comparte el pipeline de mensajes, pero no es equivalente
+al firmware de prueba: no llama a `initRpmInput()` ni renueva nominalmente las
+señales aún no adquiridas. Con las once señales actuales, esas entradas vencen;
+el timeout del voltaje crítico latched termina conduciendo a `SHUTDOWN`.
+El script integrado construye `control_test.cpp`, no esta aplicación principal.
 
 ### LEDs de estado
 
@@ -577,6 +595,197 @@ usa `new`, `delete`, `malloc` ni `free`.
 - El CORE compila con `-ffreestanding`, `-fno-exceptions`, `-fno-rtti`,
   `-fno-threadsafe-statics` y `-fno-use-cxa-atexit`.
 
+## Complejidad algorítmica (Big O)
+
+Análisis del código vigente, separado por componentes. Las cotas temporales
+son de peor caso salvo donde se indica coste esperado/amortizado. Se cuentan
+operaciones sobre tipos de tamaño fijo; no son mediciones de tiempo real.
+
+### Variables y criterio de memoria
+
+- `n`: señales o mensajes procesados en un ciclo.
+- `r`: reglas diagnósticas; en la configuración derivada válida, `r = n`.
+- `C`: capacidad reservada (`MAX_SENSOR_COUNT`): 128 en host y 16 en STM32.
+- `a`: señales físicas buscadas durante adquisición; actualmente cuatro.
+- `L`: longitud de una cadena; `B`: bytes de texto producidos en una operación.
+- `k`: ciclos ejecutados; `D`: bytes de datos inicializados durante el arranque.
+- `w`: iteraciones de espera de un periférico; `q`: bytes de `memset`.
+
+Actualmente `n = r = 11`. Aunque una compilación concreta tiene capacidad
+fija y todas las operaciones están acotadas por ella, se expresan las cotas en
+función de `n`, `r` y `C` para mostrar cómo escala el diseño al añadir señales.
+
+Las tablas distinguen memoria **auxiliar por operación** de almacenamiento
+**reservado por objeto/aplicación**. Un recorrido puede usar O(1) memoria
+auxiliar y operar sobre un array que ocupa O(C). Las referencias a memoria
+excluyen buffers internos del sistema operativo y bibliotecas, salvo indicación.
+
+### CORE (`core/`)
+
+| Componente / operación | Tiempo | Memoria | Razón |
+|---|---|---|---|
+| Tipos de dominio (`SignalId`, `FaultRecord`, `FaultSummary`, enums) | O(1) por construcción, comparación o consulta | O(1) por objeto | Número fijo de campos |
+| `SystemConfig` | O(C) al inicializar/copiar su array | O(C) reservado | Almacena capacidad completa, aunque solo `n` entradas estén activas |
+| `Message` | O(1) por constructor, getter y setter | O(1) por mensaje; O(C) para el array | Campos de tamaño fijo |
+| `MessageManager::InitMessage/UpdateMessage` | O(1) por mensaje; O(n) para un lote | O(1) auxiliar | Construcción/actualización directa, sin búsqueda |
+| `Gateway::validateValue/validateMessage` | O(1) por señal; O(n) para un lote | O(1) auxiliar | Comparaciones de reloj, edad y rango |
+| `EvaluationRule` y `DiagnosticStatus` | O(1) por construcción, validación o conversión | O(1) por objeto | Comprobaciones y switches de tamaño fijo |
+| `FaultConfiguration::buildEvaluationRuleSet` | O(n²) | O(1) auxiliar; almacenamiento externo O(C) | Verifica duplicados con dos bucles y construye `n` reglas |
+| `FaultConfiguration::validateEvaluationRuleSet` | O(n² + r² + nr); O(n²) con `r = n` | O(1) auxiliar | Comprueba duplicados y busca la configuración de cada regla linealmente |
+| Constructor de `FaultManager` | O(C + r) | O(C) reservado | Inicializa todos los registros y valida las reglas; conserva un puntero a ellas |
+| `FaultManager::processCondition/getRecord` | O(r) por señal | O(1) auxiliar | Búsqueda lineal por `SignalId`; encontrar la primera regla cuesta O(1) |
+| `FaultManager::getSummary` | O(r) | O(1) auxiliar | Recorre registros y acumula un resumen de tamaño fijo |
+| `FaultManager::reset/resetForIgnitionCycle` | O(r) | O(1) auxiliar | Reinicia los registros configurados |
+| `FaultManager::getRuleCount/isConfigValid` | O(1) | O(1) auxiliar | Consulta directa |
+| `FaultStateMachine::updateFaultRecord` | O(1) por fallo | O(1) auxiliar | Una transición mediante switch y comparaciones temporales |
+| `EcuStateMachine::updateEcuState` | O(1) | O(1) auxiliar | Estados y entradas en cantidad fija |
+| `Control::processMessages` | O(nr + n + r); O(n²) con `r = n` | O(1) auxiliar | Hasta `n` búsquedas de regla, un resumen y una transición global |
+| Constructor, reset y consulta de estado de `Control` | O(1) | O(1) por objeto | Solo conserva el estado global |
+
+Los retornos por configuración inválida o error pueden terminar antes; las
+cotas describen el recorrido máximo válido. Construir los arrays de mensajes
+y reglas agrega O(C) al arranque, fuera de las funciones que los reciben por
+referencia. El CORE completo reserva O(C) memoria para configuración, mensajes,
+reglas y registros; no crea un contenedor adicional en cada ciclo.
+
+El coste cuadrático del control procede de **buscar la regla para cada
+mensaje**, no de las FSM: procesar `n` transiciones de fallo ya localizadas
+costaría O(n). Incluso con mensajes y reglas en el mismo orden, las búsquedas
+actuales comienzan desde el índice cero: suman `1 + 2 + … + n` comparaciones.
+
+### Simulación y presentación (`src/simulations.cpp`, `src/sensor_simulation.cpp`)
+
+| Componente / operación | Tiempo | Memoria auxiliar | Razón |
+|---|---|---|---|
+| `initializeMessages` | O(n) | O(1) | Inicializa cada mensaje |
+| `validateMessages` | O(n) | O(1) | Una validación constante por señal |
+| Wrapper `processMessages` | O(nr + n + r) | O(1) | Delega en `Control` |
+| `getSensorId`, `simulateSensorValue`, `evolveValue`, `clampValue` | O(1) por señal | O(1) | Switch y aritmética de tamaño fijo |
+| `introduceFault` | O(1) por señal | O(1) | Omite actualización o escribe un valor fuera de rango |
+| Selección de fallos y actualización de valores | O(n) por ciclo | O(1); array de fallos O(C) reservado | Un recorrido por señales en cada fase |
+| `findSignalMetadata` | O(n) por búsqueda | O(1) | Busca identidad en la configuración |
+| `printMessages` | O(n² + B) | O(1) | Busca metadatos para cada mensaje y emite `B` bytes |
+| Textos/colores de estados | O(1) | O(1) | Devuelven literales mediante switches |
+| `printControlState` | O(1) respecto a `n` | O(1) | Emite una cantidad fija de texto |
+| `logFaultCauses` | O(nr + n + B) | O(1) | Busca un registro por señal; usa un buffer fijo de 256 bytes |
+| `randomSimulation` | O(n² + nr + n + r + B) por ciclo | O(C) reservado para fallos | Dashboard, actualización, control y logging condicional |
+| `userSimulation`, opción 1 | O(n² + nr + n + r + B + Lentrada) | O(Lmáx) | Búsquedas por mensaje, construcción de prompts y conversión de entradas |
+| `userSimulation`, opción 2 | O(n² + B) | O(1) | Dashboard; no procesa un nuevo ciclo diagnóstico |
+| `userSimulation`, menú/salida | O(1), más texto descartado | O(1) | Operaciones fijas; `cin.ignore` puede recorrer hasta el fin de línea |
+
+`Lentrada` es el total de caracteres numéricos leídos en una carga;
+`Lmáx` es el tamaño máximo de strings temporales de entrada o prompt.
+Para el logger, `B` incluye los caracteres examinados al formatear nombres y
+unidades: un buffer de salida fijo no evita recorrer una cadena fuente larga.
+Con los textos actuales de longitud acotada, `B = O(n)` por dashboard o listado
+de causas y el coste automático por ciclo se simplifica a **O(n²)**.
+
+En `k` ciclos, el trabajo automático es O(C + n + k·n²) bajo esas condiciones;
+el almacenamiento de la aplicación sigue siendo O(C). El bucle termina por
+estado de apagado, no por un número fijo de iteraciones. Esperas de teclado,
+terminal, disco y la pausa nominal de 500 ms se excluyen del conteo de operaciones.
+
+### Logger y utilidades de host (`src/`, `include/`, `main.cpp`)
+
+| Componente / operación | Tiempo | Memoria | Razón |
+|---|---|---|---|
+| `Logger`, constructor | O(1) | O(1) por objeto | Conserva un `FILE*` |
+| `Logger::open` | Procesamiento de ruta O(L); E/S dependiente del SO | O(1) en la clase | Apertura en append; no recorre el contenido previo del log |
+| `Logger::write` | O(L) de texto, más escritura/`fflush` | O(1) auxiliar propio | Emite el mensaje y una nueva línea |
+| `Logger::close` y destructor | O(1) de lógica propia, más cierre/vaciado de E/S | O(1) auxiliar propio | Cierra el archivo, si está abierto |
+| `get_timestamp_ms` | O(1) en el modelo de operaciones | O(1) | Consulta y conversión de reloj |
+| `get_generator`, `randomFloat/randomInt` | O(1) esperado/amortizado por muestra | O(1) respecto a `n` | Estado de `mt19937` fijo; inicialización, renovación y rechazo dependen de la biblioteca |
+| `isNumber` / conversión numérica | O(L) de procesamiento de texto | O(L) para el stream/string temporal | Examina la cadena de entrada |
+| `detectKey`, `configureTerminal` | O(1) de lógica propia | O(1) | Lee como máximo un carácter o configura un número fijo de atributos |
+| `cleanScreen` | O(1) de lógica propia; comando externo no acotado aquí | O(1) propio | Delega a `system("clear")` o `system("cls")` |
+| `getSystemConfig` | O(C) | O(C) de configuración | Inicializa el array completo; once entradas explícitas |
+| `isSystemConfigValid` | O(1) | O(1) | Compara conteo y capacidad |
+| `main.cpp`, preparación | O(C + n² + r² + nr) | O(C) reservado | Inicializa arrays, deriva/valida reglas e inicializa el gestor |
+
+Las distribuciones aleatorias pueden hacer intentos de rechazo; O(1) esperado
+no es una garantía de peor tiempo real. Tampoco se deduce una cota de latencia
+de `fopen`, `fprintf`, `fflush`, terminal o reloj a partir de Big O.
+
+El archivo de log ocupa O(Btotal) **en disco**, donde `Btotal` es el total de
+bytes escritos entre ejecuciones. El append no carga todo el archivo en RAM;
+la ausencia de rotación permite crecimiento continuo del almacenamiento.
+
+### STM32: aplicación y adquisición (`app/stm32/`)
+
+| Componente / operación | Tiempo | Memoria | Razón |
+|---|---|---|---|
+| Búsqueda de mensaje (`findMessage`) | O(n) por señal | O(1) auxiliar | Recorrido por identidad |
+| Conversiones ADC/voltaje/resistencia/temperatura | O(1) con entradas válidas del ADC actual | O(1) | Aritmética y aproximación de logaritmo acotada por el rango físico |
+| `naturalLog` considerada aisladamente | O(h), con `h` pasos de normalización por factores de dos | O(1) | Dos bucles de normalización y seis términos de serie; `h` depende de la magnitud de entrada |
+| `RpmSensor::calculateRpm` y constructor | O(1) | O(1) | Comparaciones y división de enteros/floats de ancho fijo |
+| `acquireTps/Temperature/Map/Rpm` | O(n + w) por adquisición | O(1) auxiliar | Búsqueda lineal más espera ADC cuando corresponde |
+| `acquireSignals` | O(an + Wadc) | O(1) auxiliar | Hasta cuatro búsquedas; `Wadc` suma las esperas de las tres lecturas ADC |
+| `refreshNominalSignals` (`control_test`) | O(n) | O(1) auxiliar | Actualiza señales en un recorrido |
+| `showState` | O(1) | O(1) | Selección entre estados y número fijo de LEDs |
+| Preparación de `main/control_test` | O(C + n² + r) más inicialización periférica | O(C) reservado | Construcción de configuración, reglas, mensajes y gestor |
+| Ciclo de `app/stm32/main.cpp` | O(an + nr + n + r + Wadc) | O(1) auxiliar; O(C) reservado | Adquisición, Gateway, Control y LEDs |
+| Ciclo de `control_test.cpp` | O(an + nr + n + r + Wadc) | O(1) auxiliar; O(C) reservado | Agrega refresco nominal, cuatro búsquedas de observación y consultas de fallos |
+| `rpm_input_test.cpp` | O(1) por iteración | O(1) | Consulta disponibilidad y convierte una captura |
+| `adc_test.cpp` | O(1 + w) por iteración | O(1) | Lectura bloqueante de un canal |
+| `led_test.cpp` | O(d) por parpadeo; O(1) respecto a `n` con `d` fijo | O(1) | Dos retardos ocupados; `d = 500000` iteraciones por retardo |
+
+Para el rango aceptado del NTC (`100 < ADCraw < 4000`), la normalización de
+`naturalLog` tiene un número acotado de pasos. Fuera de ese dominio no debe
+suponerse terminación para cualquier float (por ejemplo, infinito positivo).
+Una división de 64 bits puede costar más instrucciones en Cortex-M3 que una
+comparación, aunque ambas se clasifiquen como O(1).
+
+Con `a = 4` y `r = n`, el trabajo lógico de cada ciclo integrado STM32 es
+**O(n²)**. El sondeo hasta cumplir 100 ms y las esperas ADC se contabilizan
+aparte; los bucles principales no tienen duración total finita predefinida.
+
+### STM32: drivers, interrupciones y arranque (`platform/stm32/`)
+
+| Componente / operación | Tiempo | Memoria auxiliar | Razón |
+|---|---|---|---|
+| LED (`initLeds`, encender/apagar y apagar todos) | O(1) | O(1) | Número fijo de accesos a registros |
+| SysTick (`initTime`, `millis`, ISR) | O(1) por llamada/interrupción | O(1) | Configuración fija y contador de ticks |
+| RPM (`initRpmInput`, `updateRpmInput`, ISR, `readRpmPeriodUs`) | O(1) por llamada/interrupción | O(1) | Atiende flags y conserva una captura disponible, sin cola creciente |
+| `initAdc` | O(1 + Wcal) | O(1) | Configuración fija, retardo fijo y sondeo de calibración |
+| `readAdc` | O(1 + w) | O(1) | Configura canal y espera EOC |
+| `runtime.cpp::memset` | O(q) | O(1) | Escribe `q` bytes |
+| `Reset_Handler` | O(D) antes de `main` | O(1) | Copia `.data` y borra `.bss` palabra por palabra |
+| Tabla de vectores y linker script | Sin recorrido algorítmico en cada ciclo | Tamaño fijo para este MCU | Definen disposición estática de memoria y handlers |
+| `Default_Handler` | Bucle infinito | O(1) | No tiene tiempo total de terminación |
+
+`Wcal` y `w` dependen de cuándo el hardware borra/activa sus flags. Sin timeout,
+una avería puede producir espera infinita; no corresponde presentar estas
+funciones como O(1) de latencia garantizada. El coste total de interrupciones
+crece con el número de eventos atendidos, aunque cada handler haga O(1) trabajo.
+
+### Soporte fuera del pipeline vigente
+
+| Componente / operación | Tiempo | Memoria | Razón |
+|---|---|---|---|
+| `SignalSample` | O(1) por construcción/copia | O(1) por muestra | Estructura de tamaño fijo |
+| Constructor de `SignalStore` | O(C) | O(C) reservado | Inicializa almacenamiento completo |
+| `SignalStore::find/upsert` | O(s), siendo `s` muestras almacenadas | O(1) auxiliar | Búsqueda lineal antes de consultar, actualizar o insertar |
+| `SignalStore::get/size/capacity/clear` | O(1) | O(1) auxiliar | Acceso directo o cambio del conteo; `clear` no borra todo el array |
+
+Insertar `s` identidades distintas mediante `upsert` cuesta O(s²) acumulado,
+aunque cada inserción escriba una sola muestra después de buscar. Estos
+componentes no añaden coste al ciclo actual del simulador ni de STM32.
+
+### Implicaciones para el proyecto
+
+La memoria de ejecución del diseño vigente escala como **O(C)** y no crece
+con el número de ciclos. Los recorridos lineales anidados en control,
+configuración, dashboard y listado de causas explican el coste **O(n²)**.
+Con once señales, esa cota describe crecimiento; no demuestra por sí sola
+un problema de rendimiento ni cumplimiento del período de 100 ms.
+
+Un índice validado de `SignalId` a regla/mensaje/metadatos permitiría evitar
+búsquedas repetidas; un resumen incremental también podría evitar su recorrido.
+Son opciones futuras que requieren preservar identidad, configuración y
+semántica diagnóstica. Este análisis no cambia la implementación.
+Para determinar tiempos máximos reales hacen falta mediciones de WCET,
+interrupciones, esperas periféricas y E/S, además de este conteo algorítmico.
+
 ## Limitaciones actuales
 
 - Falta relacionar TPS, RPM y velocidad en la simulación y ofrecer una semilla
@@ -589,6 +798,8 @@ usa `new`, `delete`, `malloc` ni `free`.
   descritos en la sección STM32.
 
 
+- El logger solo cubre transiciones globales en modo automático; no dispone
+  de rotación, identificación de sesiones ni reporte de errores de E/S.
 - No hay drivers CAN, LIN o SENT.
 - No hay RTOS, watchdog ni persistencia de DTC.
 - No hay UDS ni bootloader de actualización.
@@ -602,7 +813,10 @@ usa `new`, `delete`, `malloc` ni `free`.
 
 ## Documentación
 
+- [Comportamiento actual](docs/CURRENT_BEHAVIOR.md)
 - [Arquitectura](docs/ARCHITECTURE.md)
+- [Registro de eventos / Logger](docs/LOGGING.md)
+- [Implementación Blue Pill](docs/BLUE_PILL_IMPLEMENTATION.md)
 - [FSM](docs/FSM.md)
 - [Simulación](docs/SIMULATION.md)
 - [Pruebas](docs/TESTING.md)

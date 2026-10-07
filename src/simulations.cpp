@@ -2,6 +2,7 @@
 #include "utils.hpp"
 #include "linux_platform.hpp"
 #include "sensor_simulation.hpp"
+#include "logger.hpp"
 #include <iostream>
 #include <thread>
 #include <iomanip>
@@ -134,7 +135,6 @@ const InitValues* findSignalMetadata(
     return 0;
 }
 
-
 // PRESENTATION
 void printMessages(
     const SystemConfig& config,
@@ -164,6 +164,79 @@ void printMessages(
     }
 }
 
+// PRESENTATION
+const char* getEcuStateText(EcuState state) {
+    switch (state) {
+        case EcuState::INIT:
+            return "INIT";
+        case EcuState::SELF_TEST:
+            return "SELF_TEST";
+        case EcuState::OPERATIONAL:
+            return "OPERATIONAL";
+        case EcuState::DEGRADED:
+            return "DEGRADED";
+        case EcuState::SAFE_STATE:
+            return "SAFE_STATE";
+        case EcuState::SHUTDOWN_REQ:
+            return "SHUTDOWN_REQ";
+        case EcuState::SHUTDOWN:
+            return "SHUTDOWN";
+    }
+    return "UNDEFINED";
+}
+
+// PRESENTATION
+const char* getFaultStateText(FaultState state) {
+    switch (state) {
+        case FaultState::INACTIVE:
+            return "INACTIVE";
+        case FaultState::PENDING:
+            return "PENDING";
+        case FaultState::CONFIRMED:
+            return "CONFIRMED";
+        case FaultState::RECOVERING:
+            return "RECOVERING";
+        case FaultState::LATCHED:
+            return "LATCHED";
+    }
+    return "UNDEFINED";
+}
+
+// PRESENTATION
+void logFaultCauses(
+    Logger &logger,
+    const SystemConfig &config,
+    const std::array<Message, MAX_SENSOR_COUNT> &sensorsArray,
+    const FaultManager &faultManager
+) {
+    for(std::size_t sensor = 0; sensor < config.sensorCount; ++sensor){
+        const FaultRecord* faultRecord = faultManager.getRecord(
+            config.sensors[sensor].signalId
+        );
+        if(faultRecord == 0){
+            continue;
+        }
+        if(
+            faultRecord->state != FaultState::CONFIRMED &&
+            faultRecord->state != FaultState::RECOVERING &&
+            faultRecord->state != FaultState::LATCHED
+        ){
+            continue;
+        }
+        char logMessage[256];
+        std::snprintf(
+            logMessage,
+            sizeof(logMessage),
+            "    SIGNAL: %s | STATUS: %s | FAULT: %s | VALUE: %.2f %s",
+            config.sensors[sensor].name,
+            getSignalStatusText(sensorsArray[sensor].getSignalStatus()),
+            getFaultStateText(faultRecord->state),
+            static_cast<double>(sensorsArray[sensor].getRawValue()),
+            config.sensors[sensor].unit
+        );
+        logger.write(logMessage);
+    }
+}
 
 // PRESENTATION
 void printControlState(const Control &control) {
@@ -319,6 +392,9 @@ void randomSimulation(
     std::uint32_t simulationCycle = 0U;
     configureTerminal(true);
     std::array<SimulatedFault, MAX_SENSOR_COUNT> simulatedFaults{};
+    Logger logger;
+    logger.open("ecu.log");
+    EcuState previousState = control.getCurrentState();
     // main loop
     while (true) {
         // clean screen and print states
@@ -391,6 +467,44 @@ void randomSimulation(
             faultManager,
             control
         );
+        // ---------- document logs ---------- //
+        const EcuState currentState = control.getCurrentState();
+        if(currentState != previousState){
+            char logMessage[128];
+            if(currentState == EcuState::INIT){
+                std::snprintf(
+                    logMessage,
+                    sizeof(logMessage),
+                    "[%llu ms] %s -> %s",
+                    static_cast<unsigned long long>(get_timestamp_ms()),
+                    getEcuStateText(previousState),
+                    getEcuStateText(currentState)
+                );
+            }else{
+                std::snprintf(
+                    logMessage,
+                    sizeof(logMessage),
+                    "[%llu ms] %s -> %s",
+                    static_cast<unsigned long long>(get_timestamp_ms()),
+                    getEcuStateText(previousState),
+                    getEcuStateText(currentState)
+                );
+            }
+            logger.write(logMessage);
+            if(
+                currentState == EcuState::DEGRADED ||
+                currentState == EcuState::SAFE_STATE
+            ){
+                logFaultCauses(
+                    logger,
+                    config,
+                    sensorsArray,
+                    faultManager
+                );
+            }
+            previousState = currentState;
+        }
+        // ---------- document logs ---------- //
         // if shutdown request
         if (control.getCurrentState() == EcuState::SHUTDOWN) {
             cleanScreen();

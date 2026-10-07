@@ -16,3 +16,8 @@ multim:     0V              3.26V
 GDB - print variables: 
     (gdb) printf "PeriodCount=%u | PeriodUs=%u | RPM=%.2f | Valid=%u | Rejected=%u\n", 
         g_rpmPeriodCount, g_rpmPeriodUs, g_rpm, g_validRpmCount, g_rejectedRpmCount
+
+CMake:
+rm -rf build-cmake
+cmake -S . -B build-cmake
+cmake --build build-cmake

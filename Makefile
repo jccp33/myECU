@@ -68,7 +68,8 @@ SIMULATOR_OBJECTS = $(BUILD_DIR)/main.o \
                     $(BUILD_DIR)/utils.o \
                     $(BUILD_DIR)/simulations.o \
                     $(BUILD_DIR)/sensor_simulation.o \
-                    $(BUILD_DIR)/linux_platform.o
+                    $(BUILD_DIR)/linux_platform.o \
+                    $(BUILD_DIR)/logger.o
 
 # ============================================================
 # Targets principales
@@ -139,6 +140,13 @@ $(BUILD_DIR)/sensor_simulation.o: \
 $(BUILD_DIR)/linux_platform.o: \
     $(SRC_DIR)/linux_platform.cpp \
     $(INCLUDE_DIR)/linux_platform.hpp
+	mkdir -p $(BUILD_DIR)
+	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
+	@echo "✓ Compilado: $<"
+
+$(BUILD_DIR)/logger.o: \
+    $(SRC_DIR)/logger.cpp \
+    $(INCLUDE_DIR)/logger.hpp
 	mkdir -p $(BUILD_DIR)
 	$(CXX) $(CXXFLAGS) $(CPPFLAGS) -c $< -o $@
 	@echo "✓ Compilado: $<"

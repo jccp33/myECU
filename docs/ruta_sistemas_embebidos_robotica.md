@@ -15,17 +15,24 @@
 
 -   [ ] Retomar integración física de RPM.
 -   [ ] Instrumentar `TIM3 → readRpmPeriodUs() → RpmSensor`.
--   [ ] Encontrar por qué `control_test` no recibe actualmente la RPM física.
+-   [ ] Resolver el constructor global RPM no ejecutado por el startup.
+-   [ ] Excluir RPM del refresco nominal que oculta pérdida de pulsos.
 -   [ ] Validar `RPM → Message 103`.
 -   [ ] Validar `VALID → OPERATIONAL`.
 -   [ ] Validar pérdida de pulsos → `TIMEOUT`.
 -   [ ] Validar `TIMEOUT → CRITICAL → SAFE_STATE`.
 -   [ ] Validar recuperación de RPM → `OPERATIONAL`.
 -   [ ] Resolver/documentar PPR del encoder.
--   [ ] Corregir documentación desactualizada.
+-   [x] Actualizar documentación del estado actual y logger (6 de octubre de 2026).
+-   [ ] Mantener documentación al cerrar la integración física RPM.
 -   [ ] Documentar arquitectura final.
 -   [ ] Crear/taggear **myECU v1.0**.
 -   [ ] Congelar alcance: no seguir agregando sensores innecesariamente.
+
+El simulador automático ya dispone de registro de transiciones y fallos
+activos en `ecu.log`; véase [LOGGING.md](LOGGING.md). Las doce pruebas host
+pasan por script dedicado; aún falta cobertura del logger y validación RPM
+en hardware. Esta actualización documental no cierra esos pendientes.
 
 **Criterio de salida:** myECU queda como una primera ECU experimental terminada y documentada.
 

@@ -184,6 +184,7 @@ if(BUILD_ECU_SIMULATOR)
         src/simulations.cpp
         src/sensor_simulation.cpp
         src/linux_platform.cpp
+        src/logger.cpp
     )
 
 

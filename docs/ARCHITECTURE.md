@@ -289,9 +289,21 @@ Agregar un sensor ordinario tampoco debe requerir modificar
 
 ---
 
+## Registro de eventos en host
+
+`Logger` pertenece al soporte del simulador (`include/logger.hpp` y
+`src/logger.cpp`). `randomSimulation()` observa el estado resultante de
+`Control` y consulta registros de `FaultManager` para presentar eventos.
+La escritura de archivos no participa en la decisión diagnóstica y no añade
+dependencias al CORE ni a STM32. Solo se utiliza en modo automático.
+Su contrato y limitaciones están en [LOGGING.md](LOGGING.md).
+
 ## SignalSample y SignalStore
 
 `SignalSample` y `SignalStore` permanecen bajo revisión arquitectónica.
+El simulador y las aplicaciones STM32 vigentes usan `Message`; ninguna de
+ellas utiliza `SignalStore` como ruta diagnóstica. Las referencias a él en
+las sesiones de hardware describen versiones históricas.
 
 Antes de considerarlos parte definitiva del pipeline se debe determinar si
 representan una responsabilidad independiente de adquisición o si duplican

@@ -5,6 +5,16 @@
 **Project:** myECU  
 **Status:** Passive characterization completed
 
+
+> **Historical session:** this document preserves the measurements and proposed
+> APIs from 2026-09-09. `SignalSample`/`SignalStore` in its diagrams describe
+> the earlier architecture, not the current STM32 application. The current path
+> is `MessageManager → Message → Gateway → Control`, with eleven configured
+> signals and a temperature range of -20 to 130 °C. See
+> [current implementation](BLUE_PILL_IMPLEMENTATION.md) and
+> [validation status](TESTING.md). The new [Logger](LOGGING.md) belongs only
+> to the Linux automatic simulator and does not change this session's results.
+
 ---
 
 ## 1. Objective

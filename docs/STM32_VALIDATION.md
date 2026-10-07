@@ -17,12 +17,30 @@ La plataforma validada actualmente es:
 - Analizador lógico: Saleae-compatible FX2, 8 canales
 - Software de captura: PulseView / sigrok
 
-> **Estado del documento:** las secciones de validación siguientes conservan
-> el registro histórico de la integración inicial del TPS. El firmware STM32
-> vigente adquiere además temperatura NTC por PA1/ADC1_IN1 y MAP por
-> PA2/ADC1_IN2. `control_test.cpp` inyecta valores nominales únicamente para
-> las siete señales restantes. La integración de MAP en software está hecha;
-> su validación física completa continúa pendiente.
+> **Registro histórico:** las secciones siguientes conservan APIs, índices,
+> configuración y resultados de las sesiones originales. No deben copiarse
+> como instrucciones del firmware vigente ni interpretarse como nuevas pruebas.
+
+## Correspondencia con el código actual — 6 de octubre de 2026
+
+El pipeline vigente es `MessageManager → Message → Gateway → SignalStatus →
+Control → FaultManager / FSM global`. `SignalSample`, `SignalStore`, reglas
+RANGE/TIMEOUT separadas, `getRecord(12U)` y `processInputs()` corresponden a
+la arquitectura histórica de las secciones posteriores. Ahora hay un registro
+por `SignalId`; TPS se consulta con `SignalId(1U, 1U, 106U, 0U)`.
+
+La configuración contiene once señales, incluida presión de aceite, y el
+rango de temperatura es -20...130 °C. `control_test` adquiere TPS, NTC y MAP,
+intenta adquirir RPM y renueva ocho señales nominalmente, incluida RPM.
+La renovación RPM puede ocultar su timeout; el constructor global del conversor
+no se ejecuta con el startup actual. MAP y RPM requieren validación física
+completa. El firmware principal tampoco es equivalente a `control_test`.
+
+La revisión compiló `control_test` para ARM (8428 bytes de código y 60 de BSS)
+sin flashear ni repetir las mediciones físicas. El logger nuevo registra eventos
+solo en el simulador Linux; no es evidencia de ejecución STM32.
+Consulte [implementación vigente](BLUE_PILL_IMPLEMENTATION.md),
+[pruebas](TESTING.md) y [logger](LOGGING.md).
 
 ## Estructura STM32
 

@@ -47,3 +47,6 @@ ubsan.log*
 .vscode/
 .idea/
 .clangd/
+
+# Archivos de registro
+*.log

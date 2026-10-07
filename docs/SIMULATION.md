@@ -12,9 +12,8 @@ aleatoriedad y pausas no forman parte de la FSM portable.
 
 ## Modelo automático
 
-Antes, cada ciclo elegía cualquier valor entre los extremos ampliados del
-rango. Eso permitía saltos físicamente irreales y hacía frecuente un fallo
-latched de voltaje. Ahora se calcula:
+El ciclo automático tiene una pausa nominal de 500 ms. Cada señal evoluciona
+a partir de su valor anterior mediante:
 
 ```text
 nuevo = actual + (objetivo - actual) × respuesta + ruido limitado
@@ -41,11 +40,14 @@ flowchart LR
 | MAP | aproxima una presión de operación media |
 | MAF | aproxima un flujo moderado |
 | O₂ | variación limitada alrededor de 0.45 V |
+| Presión de aceite | aproxima 3 bar dentro del rango 1–6 bar |
 | Freno | entrada discreta controlada por `B` |
 | Apagado | entrada discreta controlada por `S` |
 
-El modelo busca continuidad y pruebas reproducibles de invariantes; no pretende
-ser un modelo termodinámico de motor.
+El modelo busca continuidad; sus invariantes se prueban pasando ruido
+controlado a `simulateSensorValue()`. Las demostraciones automáticas usan
+`random_device` y no ofrecen semilla fija. No es un modelo termodinámico
+de motor ni relaciona todavía TPS, RPM y velocidad.
 
 ## Controles
 
@@ -58,7 +60,8 @@ activarse `B`, que representa `shutdownPermitted`.
 ## Inyección manual de fallos
 
 El modo manual permite cargar valores fuera de rango y observar confirmación y
-recuperación. Ejemplos:
+recuperación. Procesa al terminar la entrada de señales; no ejecuta un ciclo
+continuo mientras espera teclado y no escribe `ecu.log`. Ejemplos:
 
 | Prueba | Valor | Resultado después de confirmación |
 |---|---:|---|
@@ -70,8 +73,40 @@ recuperación. Ejemplos:
 Los tiempos de confirmación usan timestamps reales; por eso deben procesarse
 varios ciclos para confirmar o recuperar un fallo.
 
+## Ventanas automáticas de fallo
+
+La primera selección ocurre después de 30 ciclos (aproximadamente 15 s).
+Cada señal de los índices 2–10 tiene una probabilidad de selección del 50 %;
+para las seleccionadas, el tipo tiene una probabilidad del 50 % de timeout
+frente a fuera de rango. La solicitud de apagado y el freno quedan excluidos.
+
+El tipo se mantiene durante 20 ciclos (unos 10 s), seguido de 10 ciclos
+sin inyección antes de la siguiente selección. En timeout no se actualiza
+el mensaje; en fuera de rango se escribe `maxValue + 1`. La ventana de timeout
+empieza antes de que venza la edad de la última muestra. Confirmación y
+recuperación se resuelven después según los tiempos diagnósticos.
+
+El fallo latched de voltaje puede provocar `SAFE_STATE → SHUTDOWN` y terminar
+la simulación antes del final de una ventana. No se fuerza su recuperación.
+
+## Registro de eventos
+
+`randomSimulation()` abre `ecu.log` en append y escribe cada transición global
+después de procesar el ciclo, incluida la transición final a `SHUTDOWN`.
+Al entrar en `DEGRADED` o `SAFE_STATE`, agrega nombre, estado de señal,
+estado del fallo y último valor/unidad para los fallos activos.
+
+```bash
+tail -f ecu.log
+```
+
+El registro usa el reloj monotónico, conserva sesiones anteriores y no
+registra cambios de fallo si `EcuState` permanece igual. Los detalles de
+formato, errores de E/S y ciclo de vida están en [LOGGING.md](LOGGING.md).
+
 ## Evolución futura
 
 Una simulación más avanzada debería incluir perfiles de conducción, relaciones
-RPM/TPS/MAP/MAF, encendido y apagado de motor, inyección explícita de timeout,
-fallos intermitentes y semillas reproducibles.
+RPM/TPS/MAP/MAF, encendido y apagado de motor, selección explícita de escenarios,
+fallos intermitentes y semillas reproducibles. La inyección aleatoria de
+timeout y rango ya está implementada.
