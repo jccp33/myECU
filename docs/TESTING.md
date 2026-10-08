@@ -59,12 +59,20 @@ repitió una sesión de sanitizadores durante esta actualización documental.
 
 ## Logger e interfaz del simulador
 
-El logger compila con el simulador. `ecu.log` contiene registros de arranque,
-degradación, recuperación, apagado solicitado y apagado por crítico latched.
-Son observaciones de simulación, no pruebas automatizadas del logger.
+El logger forma parte de la compilación del simulador. La revisión documental
+observó `logs/txt/18259727.txt` (100 líneas) y `logs/csv/18279280.csv`
+(502 líneas, incluida la cabecera). El TXT muestra transiciones y causas de
+fallo; el CSV contiene once señales y `ECU_STATE` con valores a cuatro decimales.
+Son registros de ejecuciones anteriores, no pruebas automatizadas ni una
+certificación del código actual. El escenario crítico latched sigue disponible
+en modo manual, pero Voltaje está excluido de las fallas aleatorias.
+
+La actualización documental del 7 de octubre de 2026 no recompiló ni ejecutó
+el simulador o las pruebas; se limitó a revisión de código y registros existentes.
 
 La suite no cubre específicamente apertura/escritura/cierre de archivos,
-fallos de E/S, append, formato de eventos ni la integración de `Logger` con
+fallos de E/S, creación de carpetas, colisiones de nombres, append, formatos
+TXT/CSV ni la integración de `Logger` con
 el bucle de consola. Tampoco cubre todas las ventanas de inyección automática,
 la entrada interactiva o semillas repetibles. Véase [LOGGING.md](LOGGING.md).
 

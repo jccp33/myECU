@@ -81,8 +81,8 @@ respecto del alcance funcional y de POO descrito en el hito.
 - `control_test` fue compilado, grabado y verificado en un STM32F103 mediante
   ST-Link.
 - La adquisición física actual utiliza ADC1 para TPS, temperatura NTC y MAP.
-- El modo automático registra transiciones y fallos activos en `ecu.log`
-  mediante `Logger`, sin introducir dependencias en el CORE.
+- El modo automático guarda transiciones y fallos activos en TXT o muestras
+  por ciclo en CSV mediante `Logger`, sin introducir dependencias en el CORE.
 
 La revisión arquitectónica y la validación física completa continúan en progreso.
 En particular, quedan pendientes una validación exhaustiva de entradas
@@ -348,24 +348,38 @@ Una solicitud lleva a `SHUTDOWN_REQ`. El apagado normal alcanza `SHUTDOWN`
 cuando también existe permiso.
 
 La primera selección aleatoria de fallos ocurre tras 30 ciclos (unos 15 s).
-En cada selección, cada señal analógica tiene una probabilidad de falla del
+En cada selección, cada señal analógica no enclavada tiene una probabilidad de falla del
 50 % y, si se selecciona, un 50 % de probabilidad de timeout frente a fuera
 de rango. El tipo se mantiene durante 20 ciclos (unos 10 s); quedan 10 ciclos
 (unos 5 s) sin inyección antes de la siguiente selección.
 
-El modo automático también agrega eventos a `ecu.log` en el directorio de
-trabajo. Registra cada cambio de `EcuState` y, al entrar en `DEGRADED` o
+El modo automático ofrece dos formatos de registro:
+
+```bash
+./ecu -auto       # eventos en logs/txt/<timestamp>.txt
+./ecu -auto -csv  # muestras por ciclo en logs/csv/<timestamp>.csv
+```
+
+TXT registra cada cambio de `EcuState` y, al entrar en `DEGRADED` o
 `SAFE_STATE`, los fallos en `CONFIRMED`, `RECOVERING` o `LATCHED` con su
-último valor. El modo manual no genera ese registro. El archivo conserva
-ejecuciones anteriores, usa timestamps del reloj monotónico y está ignorado
-por Git. Consulte [Registro de eventos](docs/LOGGING.md) para el formato,
-la interfaz y las limitaciones.
+último valor. CSV incluye una cabecera con nombres y unidades y una fila por
+ciclo con todos los valores a cuatro decimales y `ECU_STATE`; no incluye
+columna temporal ni diagnóstico individual de las señales. En timeout puede
+mostrar la última muestra almacenada.
+
+Las carpetas se crean respecto al directorio de trabajo. Cada ejecución usa
+un nombre basado en el reloj monotónico, no en la fecha/hora de calendario;
+la apertura sigue siendo append, por lo que una coincidencia de nombres
+agregaría datos al archivo existente. Git ignora `logs/`. El modo manual no
+genera registros. Consulte [Registro de eventos](docs/LOGGING.md) para el
+formato, la interfaz y las limitaciones.
 
 En timeout no se actualiza el mensaje; en rango se escribe `maxValue + 1`.
 Al terminar la ventana se retoma la evolución normal y el diagnóstico aplica
 su recuperación. Los tiempos son aproximados y dependen del ciclo de consola.
-El fallo latched de batería puede terminar la simulación antes de completar
-la ventana. No se fuerza la recuperación de un fallo latched.
+La selección aleatoria excluye sensores `LATCHED`, actualmente Voltaje.
+El diagnóstico enclavado sigue vigente y puede observarse mediante inyección
+manual; no se fuerza su recuperación.
 
 ## STM32F103C8T6
 
@@ -668,7 +682,7 @@ actuales comienzan desde el índice cero: suman `1 + 2 + … + n` comparaciones.
 | Textos/colores de estados | O(1) | O(1) | Devuelven literales mediante switches |
 | `printControlState` | O(1) respecto a `n` | O(1) | Emite una cantidad fija de texto |
 | `logFaultCauses` | O(nr + n + B) | O(1) | Busca un registro por señal; usa un buffer fijo de 256 bytes |
-| `randomSimulation` | O(n² + nr + n + r + B) por ciclo | O(C) reservado para fallos | Dashboard, actualización, control y logging condicional |
+| `randomSimulation` | O(n² + nr + n + r + B) por ciclo | O(C + B) en CSV | Dashboard, actualización, control y registro TXT o CSV |
 | `userSimulation`, opción 1 | O(n² + nr + n + r + B + Lentrada) | O(Lmáx) | Búsquedas por mensaje, construcción de prompts y conversión de entradas |
 | `userSimulation`, opción 2 | O(n² + B) | O(1) | Dashboard; no procesa un nuevo ciclo diagnóstico |
 | `userSimulation`, menú/salida | O(1), más texto descartado | O(1) | Operaciones fijas; `cin.ignore` puede recorrer hasta el fin de línea |
@@ -681,7 +695,8 @@ Con los textos actuales de longitud acotada, `B = O(n)` por dashboard o listado
 de causas y el coste automático por ciclo se simplifica a **O(n²)**.
 
 En `k` ciclos, el trabajo automático es O(C + n + k·n²) bajo esas condiciones;
-el almacenamiento de la aplicación sigue siendo O(C). El bucle termina por
+el almacenamiento de la aplicación es O(C + B) en CSV por la fila construida
+en memoria; con textos y valores de longitud acotada, B = O(n) y n ≤ C. El bucle termina por
 estado de apagado, no por un número fijo de iteraciones. Esperas de teclado,
 terminal, disco y la pausa nominal de 500 ms se excluyen del conteo de operaciones.
 
@@ -798,8 +813,10 @@ interrupciones, esperas periféricas y E/S, además de este conteo algorítmico.
   descritos en la sección STM32.
 
 
-- El logger solo cubre transiciones globales en modo automático; no dispone
-  de rotación, identificación de sesiones ni reporte de errores de E/S.
+- El registro TXT cubre transiciones globales; CSV guarda muestras por ciclo.
+  No hay rotación, identificador de sesión garantizado como único ni reporte
+  de errores de creación de carpetas, apertura o escritura. CSV carece de
+  timestamps y diagnóstico individual por señal.
 - No hay drivers CAN, LIN o SENT.
 - No hay RTOS, watchdog ni persistencia de DTC.
 - No hay UDS ni bootloader de actualización.

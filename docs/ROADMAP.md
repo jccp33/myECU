@@ -20,8 +20,12 @@ no demuestra validación del firmware completo en hardware.
 - [x] Verificación host con ASan y UBSan (evidencia previa).
 - [x] Doce ejecutables de prueba host vigentes pasan mediante script dedicado.
 - [x] Logger de transiciones y fallos activos en simulación automática.
+- [x] Archivos TXT por ejecución y exportación CSV de muestras por ciclo.
+- [x] Exclusión de señales `LATCHED` en la inyección aleatoria.
+- [ ] Añadir tiempo y diagnóstico por señal al CSV; cubrir fallas enclavadas
+  mediante escenarios explícitos.
 - [ ] Integrar pruebas host en CMake/CTest o Make.
-- [ ] Validar automáticamente logger y errores de E/S; identificar sesiones.
+- [ ] Validar automáticamente logger y errores de E/S; garantizar identificación única de sesiones.
 
 ## Plataforma embebida STM32 — en progreso
 

@@ -27,7 +27,8 @@ void randomSimulation(
     MessageManager &mssgManager,
     Gateway &gateway,
     FaultManager& faultManager,
-    Control &control
+    Control &control,
+    int fileType
 );
 
 #endif

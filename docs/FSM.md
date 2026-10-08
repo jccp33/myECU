@@ -83,8 +83,9 @@ aprobado en cada llamada. El estado `SELF_TEST` no implica todavía una
 comprobación física. `Control::reset()` reinicia la FSM global; limpiar los
 registros requiere también el reset de `FaultManager`.
 
-El logger del modo automático observa las transiciones después del ciclo;
-no altera la FSM ni registra todos los pasos internos de cada fallo.
+El registro TXT del modo automático observa las transiciones después del ciclo;
+el CSV guarda los valores y el estado global en cada ciclo. Ninguno altera
+la FSM ni registra todos los pasos internos de cada fallo.
 Véase [LOGGING.md](LOGGING.md).
 
 ## FSM de cada fallo

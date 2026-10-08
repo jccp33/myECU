@@ -38,13 +38,20 @@ int main(int argc, char* argv[]) {
 
     // Simulation.
     if (argc>1 && std::string(argv[1])=="-auto") {
+        int fileType;
+        if (argc>2 && std::string(argv[2])=="-csv") {
+            fileType = 1;
+        } else {
+            fileType = 0;
+        }
         randomSimulation(
             config,
             sensors,
             mssgManager,
             gateway,
             faultManager,
-            control
+            control,
+            fileType
         );
     } else {
         userSimulation(

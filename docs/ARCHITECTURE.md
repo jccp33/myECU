@@ -293,7 +293,11 @@ Agregar un sensor ordinario tampoco debe requerir modificar
 
 `Logger` pertenece al soporte del simulador (`include/logger.hpp` y
 `src/logger.cpp`). `randomSimulation()` observa el estado resultante de
-`Control` y consulta registros de `FaultManager` para presentar eventos.
+`Control` y consulta registros de `FaultManager` para presentar eventos TXT.
+Alternativamente exporta los valores de `Message` y el estado global por ciclo
+en CSV. La selección llega desde `main.cpp` mediante el parámetro `int fileType`
+(1 para CSV; cualquier otro valor para TXT). Las carpetas se crean mediante
+`mkdir(path, 0755)`, una dependencia POSIX del host.
 La escritura de archivos no participa en la decisión diagnóstica y no añade
 dependencias al CORE ni a STM32. Solo se utiliza en modo automático.
 Su contrato y limitaciones están en [LOGGING.md](LOGGING.md).

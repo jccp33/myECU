@@ -10,6 +10,9 @@
 #include <limits>
 #include <string>
 #include <cstdint>
+#include <sstream>
+#include <sys/stat.h>
+#include <cerrno>
 
 namespace {
     struct SimulatedFault{
@@ -28,6 +31,15 @@ namespace {
             invalidValue,
             mssg
         );
+    }
+    bool createDirectory(const char *path){
+        if(mkdir(path, 0755) == 0){
+            return true;
+        }
+        if(errno == EEXIST){
+            return true;
+        }
+        return false;
     }
 }
 
@@ -361,7 +373,6 @@ void userSimulation(
             std::cout << std::endl << "Presione enter para continuar ...";
             std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
             std::cin.get();
-
         } else if (option == 3) {
             // option 3 : finish
             return;
@@ -380,7 +391,8 @@ void randomSimulation(
     MessageManager &mssgManager, 
     Gateway &gateway, 
     FaultManager& faultManager,
-    Control &control
+    Control &control,
+    int fileType
 ) {
     if (config.sensorCount > sensorsArray.size()) {
         return;
@@ -392,10 +404,36 @@ void randomSimulation(
     std::uint32_t simulationCycle = 0U;
     configureTerminal(true);
     std::array<SimulatedFault, MAX_SENSOR_COUNT> simulatedFaults{};
+    std::string filepath = "logs/";
+    createDirectory(filepath.c_str());
+    std::string fileName = "";
+    switch (fileType){
+        case 1:
+            filepath += "csv/";
+            fileName = std::to_string(get_timestamp_ms()) + ".csv";
+            break;
+        default:
+            filepath += "txt/";
+            fileName = std::to_string(get_timestamp_ms()) + ".txt";
+            break;
+    }
+    createDirectory(filepath.c_str());
+    fileName = filepath + fileName;
     Logger logger;
-    logger.open("ecu.log");
+    logger.open(fileName.c_str());
     EcuState previousState = control.getCurrentState();
     // main loop
+    if(fileType == 1){
+        std::string header = "";
+        for(std::size_t sensor = 0; sensor < config.sensorCount; ++sensor){
+            header.append(config.sensors[sensor].name);
+            header.append("(");
+            header.append(config.sensors[sensor].unit);
+            header.append("), ");
+        }
+        header.append("ECU_STATE");
+        logger.write(header.c_str());
+    }
     while (true) {
         // clean screen and print states
         cleanScreen();
@@ -419,6 +457,11 @@ void randomSimulation(
         const bool faultWindowActive = simulationCycle >= FAULT_INTERVAL_CYCLES && cycleInFaultPeriod < FAULT_DURATION_CYCLES;
         if(newFault){
             for (std::size_t sensor = 2U; sensor<config.sensorCount; sensor++){
+                if(config.sensors[sensor].latching == FaultLatching::LATCHED){
+                    simulatedFaults[sensor].active = false;
+                    simulatedFaults[sensor].timeout = false;
+                    continue;
+                }
                 simulatedFaults[sensor].active = randomFloat(0.0F, 1.0F) < FAULT_PROBABILITY;
                 if(simulatedFaults[sensor].active){
                     simulatedFaults[sensor].timeout = randomFloat(0.0F, 1.0F) < FAULT_TIMEOUT_PROBABILITY;
@@ -469,40 +512,52 @@ void randomSimulation(
         );
         // ---------- document logs ---------- //
         const EcuState currentState = control.getCurrentState();
-        if(currentState != previousState){
-            char logMessage[128];
-            if(currentState == EcuState::INIT){
-                std::snprintf(
-                    logMessage,
-                    sizeof(logMessage),
-                    "[%llu ms] %s -> %s",
-                    static_cast<unsigned long long>(get_timestamp_ms()),
-                    getEcuStateText(previousState),
-                    getEcuStateText(currentState)
-                );
-            }else{
-                std::snprintf(
-                    logMessage,
-                    sizeof(logMessage),
-                    "[%llu ms] %s -> %s",
-                    static_cast<unsigned long long>(get_timestamp_ms()),
-                    getEcuStateText(previousState),
-                    getEcuStateText(currentState)
-                );
+        if(fileType == 1){
+            std::string logMessage = "";
+            for(std::size_t sensor = 0; sensor < config.sensorCount; ++sensor){
+                const float value = sensorsArray[sensor].getRawValue();
+                std::stringstream ss;
+                ss << std::fixed << std::setprecision(4) << value;
+                logMessage += ss.str() + ", ";
             }
-            logger.write(logMessage);
-            if(
-                currentState == EcuState::DEGRADED ||
-                currentState == EcuState::SAFE_STATE
-            ){
-                logFaultCauses(
-                    logger,
-                    config,
-                    sensorsArray,
-                    faultManager
-                );
+            logMessage += getEcuStateText(currentState);
+            logger.write(logMessage.c_str());
+        }else{
+            if(currentState != previousState){
+                char logMessage[128];
+                if(currentState == EcuState::INIT){
+                    std::snprintf(
+                        logMessage,
+                        sizeof(logMessage),
+                        "[%llu ms] %s -> %s",
+                        static_cast<unsigned long long>(get_timestamp_ms()),
+                        getEcuStateText(previousState),
+                        getEcuStateText(currentState)
+                    );
+                }else{
+                    std::snprintf(
+                        logMessage,
+                        sizeof(logMessage),
+                        "[%llu ms] %s -> %s",
+                        static_cast<unsigned long long>(get_timestamp_ms()),
+                        getEcuStateText(previousState),
+                        getEcuStateText(currentState)
+                    );
+                }
+                logger.write(logMessage);
+                if(
+                    currentState == EcuState::DEGRADED ||
+                    currentState == EcuState::SAFE_STATE
+                ){
+                    logFaultCauses(
+                        logger,
+                        config,
+                        sensorsArray,
+                        faultManager
+                    );
+                }
+                previousState = currentState;
             }
-            previousState = currentState;
         }
         // ---------- document logs ---------- //
         // if shutdown request

@@ -49,4 +49,4 @@ ubsan.log*
 .clangd/
 
 # Archivos de registro
-*.log
+logs/

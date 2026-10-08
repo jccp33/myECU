@@ -8,8 +8,8 @@ class Logger{
     public:
         Logger();
         ~Logger();
-        bool open(const char* filename);
-        void write(const char* message);
+        bool open(const char *filename);
+        void write(const char *message);
         void close();
 };
 

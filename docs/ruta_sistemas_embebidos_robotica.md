@@ -30,7 +30,9 @@
 -   [ ] Congelar alcance: no seguir agregando sensores innecesariamente.
 
 El simulador automático ya dispone de registro de transiciones y fallos
-activos en `ecu.log`; véase [LOGGING.md](LOGGING.md). Las doce pruebas host
+activos en `logs/txt/`, o muestras por ciclo en `logs/csv/` con `-auto -csv`;
+la selección aleatoria excluye señales `LATCHED`. Véase [LOGGING.md](LOGGING.md).
+Según la validación previa, las doce pruebas host
 pasan por script dedicado; aún falta cobertura del logger y validación RPM
 en hardware. Esta actualización documental no cierra esos pendientes.
 

@@ -53,9 +53,15 @@ El modo manual procesa al terminar la entrada de valores y no supervisa
 continuamente mientras espera al usuario. El automático evoluciona señales,
 inyecta ventanas aleatorias de rango/timeout y acepta `B` y `S`.
 
-Solo el modo automático utiliza `Logger`: abre `ecu.log` en append, registra
-transiciones y enumera fallos activos al entrar en `DEGRADED` o `SAFE_STATE`.
-No registra cambios de fallo sin transición global ni comprueba errores de
+La inyección aleatoria excluye señales `LATCHED`, actualmente Voltaje;
+el diagnóstico enclavado sigue activo.
+
+Solo el modo automático utiliza `Logger`. `./ecu -auto` guarda transiciones
+y causas activas en `logs/txt/<timestamp>.txt`; `./ecu -auto -csv` guarda
+valores de todas las señales y `ECU_STATE` por ciclo en `logs/csv/<timestamp>.csv`.
+CSV no incluye tiempo ni diagnóstico individual. Los nombres usan el reloj
+monotónico y los archivos se abren en append. TXT no registra cambios de fallo
+sin transición global. No se comprueban errores de creación de carpetas ni de
 apertura/escritura. Véanse [SIMULATION.md](SIMULATION.md) y [LOGGING.md](LOGGING.md).
 
 ## Aplicaciones STM32
